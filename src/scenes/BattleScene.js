@@ -1,6 +1,9 @@
 import Phaser from "phaser";
-import { CHARACTER_ANIMATIONS } from "../config/gameData.js";
+import Fighter from "../entities/Fighter.js";
 import InputManager from "../systems/InputManager.js";
+import CombatSystem from "../systems/CombatSystem.js";
+import EffectsManager from "../systems/EffectsManager.js";
+import { soundManager } from "../systems/SoundManager.js";
 import { GameSession, createArcadeButton } from "../utils/helpers.js";
 
 export default class BattleScene extends Phaser.Scene {
@@ -11,66 +14,79 @@ export default class BattleScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     const { arena, p1Character, p2Character } = GameSession;
-    this.floorY = height * 0.82;
+    this.floorY = height * 0.84;
+    this.showDebugBoxes = false;
 
     this.renderPerspectiveArena(arena, width, height);
     this.renderTekkenHUD(p1Character, p2Character, width);
 
-    this.p1Shadow = this.add.ellipse(
-      390,
-      this.floorY - 8,
-      135,
-      26,
-      0x000000,
-      0.65,
-    );
-    this.p2Shadow = this.add.ellipse(
-      width - 390,
-      this.floorY - 8,
-      135,
-      26,
-      0x000000,
-      0.65,
-    );
+    this.effectsManager = new EffectsManager(this);
 
-    this.p1FighterSprite = this.add
-      .sprite(390, this.floorY - 150, p1Character.textureKey, 0)
-      .setScale(1.05)
-      .setFlipX(false);
-
-    this.p2FighterSprite = this.add
-      .sprite(width - 390, this.floorY - 150, p2Character.textureKey, 0)
-      .setScale(1.05)
-      .setFlipX(true);
-
-    this.p1FighterSprite.play(`${p1Character.id}_idle`);
-    this.p2FighterSprite.play(`${p2Character.id}_idle`);
-
-    this.p1FighterSprite.on("animationcomplete", () => {
-      this.p1FighterSprite.play(`${p1Character.id}_idle`, true);
+    this.fighter1 = new Fighter(this, {
+      playerNumber: 1,
+      characterData: p1Character,
+      x: 370,
+      groundY: this.floorY,
+      facing: 1,
     });
-    this.p2FighterSprite.on("animationcomplete", () => {
-      this.p2FighterSprite.play(`${p2Character.id}_idle`, true);
+
+    this.fighter2 = new Fighter(this, {
+      playerNumber: 2,
+      characterData: p2Character,
+      x: width - 370,
+      groundY: this.floorY,
+      facing: -1,
     });
 
     this.inputManager = new InputManager(this);
+    this.combatSystem = new CombatSystem(
+      this,
+      this.fighter1,
+      this.fighter2,
+      (hitEvent) => this.handleCombatHit(hitEvent),
+    );
 
-    this.inputStatusText = this.add
+    this.debugGraphics = this.add.graphics();
+
+    this.combatFeedText = this.add
       .text(
         width / 2,
-        115,
-        "P1 KEYS: [W,A,S,D + F,G,H,R]   |   P2 KEYS: [ARROWS + J,K,L,I]",
+        108,
+        "PHASE 5 COMBAT & FX READY — P1: [WASD + F,G,H,R]   |   P2: [ARROWS + J,K,L,I]",
         {
-          fontSize: "14px",
+          fontSize: "13px",
           fontStyle: "bold",
           color: "#ffd60a",
-          backgroundColor: "#000000bb",
+          backgroundColor: "#000000cc",
+          padding: { x: 12, y: 4 },
+        },
+      )
+      .setOrigin(0.5);
+
+    this.movementDebugText = this.add
+      .text(
+        width / 2,
+        138,
+        "P1: RIGHT -> | RAMA X: 370   ||   P2: <- LEFT | JUN X: 910",
+        {
+          fontFamily: "monospace",
+          fontSize: "13px",
+          fontStyle: "bold",
+          color: "#30d158",
+          backgroundColor: "#0a0a14dd",
           padding: { x: 14, y: 5 },
         },
       )
       .setOrigin(0.5);
 
-    this.buildAnimationTestBar(width, height, p1Character, p2Character);
+    this.input.on("pointerdown", () => {
+      soundManager.ensureContext();
+      if (this.game && this.game.canvas) {
+        this.game.canvas.focus();
+      }
+    });
+
+    this.buildBottomUtilityBar(width, height);
   }
 
   renderPerspectiveArena(arena, width, height) {
@@ -83,7 +99,7 @@ export default class BattleScene extends Phaser.Scene {
         .image(width / 2, height / 2, arena.textureKey)
         .setDisplaySize(width, height);
       const vignette = this.add.graphics();
-      vignette.fillStyle(0x000000, 0.22);
+      vignette.fillStyle(0x000000, 0.25);
       vignette.fillRect(0, 0, width, 110);
       return;
     }
@@ -94,17 +110,6 @@ export default class BattleScene extends Phaser.Scene {
     g.fillGradientStyle(arena.skyColor, arena.skyColor, 0x1e1318, 0x1e1318, 1);
     g.fillRect(0, 0, width, horizonY);
 
-    g.fillStyle(arena.ambientLight, 0.14);
-    g.fillCircle(width * 0.25, horizonY - 40, 160);
-    g.fillCircle(width * 0.75, horizonY - 40, 160);
-
-    for (let px = 90; px < width; px += 220) {
-      g.fillStyle(0x120d14, 0.95);
-      g.fillRect(px - 22, 95, 44, horizonY - 95);
-      g.lineStyle(2, arena.accentColor, 0.35);
-      g.strokeRect(px - 22, 95, 44, horizonY - 95);
-    }
-
     g.fillGradientStyle(
       0x1b151e,
       0x1b151e,
@@ -114,46 +119,57 @@ export default class BattleScene extends Phaser.Scene {
     );
     g.fillRect(0, horizonY, width, height - horizonY);
 
-    g.lineStyle(1, 0xffffff, 0.08);
-    const vanishX = width / 2;
-    for (let i = -12; i <= 12; i++) {
-      const topX = vanishX + i * 45;
-      const bottomX = vanishX + i * 135;
-      g.lineBetween(topX, horizonY, bottomX, height);
-    }
-
-    for (let r = 1; r <= 7; r++) {
-      const ratio = Math.pow(r / 7, 1.45);
-      const y = horizonY + ratio * (height - horizonY);
-      g.lineBetween(0, y, width, y);
-    }
-
     g.lineStyle(3, arena.accentColor, 0.75);
     g.lineBetween(0, horizonY, width, horizonY);
   }
 
   renderTekkenHUD(p1, p2, width) {
     const hud = this.add.graphics();
+    this.barWidth = 454;
+    this.barHeight = 22;
+    const topY = 34;
 
-    const barW = 460;
-    const barH = 26;
-    const topY = 36;
+    hud.fillStyle(0x1a0808, 0.92);
+    hud.fillRect(60, topY, this.barWidth + 6, this.barHeight + 6);
+    hud.fillRect(
+      width - 66 - this.barWidth,
+      topY,
+      this.barWidth + 6,
+      this.barHeight + 6,
+    );
 
-    hud.fillStyle(0x1a0808, 0.9);
-    hud.fillRect(60, topY, barW, barH);
-    hud.fillRect(width - 60 - barW, topY, barW, barH);
+    this.p1HealthFill = this.add
+      .rectangle(
+        63 + this.barWidth,
+        topY + 3 + this.barHeight / 2,
+        this.barWidth,
+        this.barHeight,
+        0xffcc00,
+      )
+      .setOrigin(1, 0.5);
 
-    hud.fillGradientStyle(0xffe629, 0xffe629, 0xff2a1a, 0xff2a1a, 1);
-    hud.fillRect(63, topY + 3, barW - 6, barH - 6);
-    hud.fillRect(width - 60 - barW + 3, topY + 3, barW - 6, barH - 6);
+    this.p2HealthFill = this.add
+      .rectangle(
+        width - 63 - this.barWidth,
+        topY + 3 + this.barHeight / 2,
+        this.barWidth,
+        this.barHeight,
+        0xffcc00,
+      )
+      .setOrigin(0, 0.5);
 
     hud.lineStyle(3, 0xffd60a, 1);
-    hud.strokeRect(60, topY, barW, barH);
-    hud.strokeRect(width - 60 - barW, topY, barW, barH);
+    hud.strokeRect(60, topY, this.barWidth + 6, this.barHeight + 6);
+    hud.strokeRect(
+      width - 66 - this.barWidth,
+      topY,
+      this.barWidth + 6,
+      this.barHeight + 6,
+    );
 
     this.add.text(62, topY + 34, p1.name, {
       fontFamily: 'Impact, "Arial Black", sans-serif',
-      fontSize: "28px",
+      fontSize: "26px",
       color: "#ffffff",
       stroke: "#000000",
       strokeThickness: 5,
@@ -162,21 +178,40 @@ export default class BattleScene extends Phaser.Scene {
     this.add
       .text(width - 62, topY + 34, p2.name, {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "28px",
+        fontSize: "26px",
         color: "#ffffff",
         stroke: "#000000",
         strokeThickness: 5,
       })
       .setOrigin(1, 0);
 
-    hud.fillStyle(0xff3b30, 1);
-    hud.fillCircle(width / 2 - 76, topY + 46, 8);
-    hud.fillCircle(width / 2 + 76, topY + 46, 8);
+    this.p1StateBadge = this.add.text(
+      210,
+      topY + 40,
+      "STATE: IDLE  |  SP: READY",
+      {
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#30d158",
+        backgroundColor: "#000000aa",
+        padding: { x: 8, y: 3 },
+      },
+    );
+
+    this.p2StateBadge = this.add
+      .text(width - 210, topY + 40, "STATE: IDLE  |  SP: READY", {
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#30d158",
+        backgroundColor: "#000000aa",
+        padding: { x: 8, y: 3 },
+      })
+      .setOrigin(1, 0);
 
     this.add
       .text(width / 2, topY + 14, "99", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "54px",
+        fontSize: "52px",
         color: "#ffd60a",
         stroke: "#3a0800",
         strokeThickness: 6,
@@ -184,124 +219,180 @@ export default class BattleScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  spawnTekkenHitSpark(x, y, colorHex = 0xffd60a) {
-    const spark = this.add.graphics({ x, y });
-    spark.fillStyle(0xffffff, 1);
-    spark.fillCircle(0, 0, 14);
-    spark.lineStyle(4, colorHex, 1);
+  updateHUD(p1Input, p2Input) {
+    const p1Ratio = this.fighter1.health / this.fighter1.maxHealth;
+    const p2Ratio = this.fighter2.health / this.fighter2.maxHealth;
 
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      spark.lineBetween(
-        Math.cos(angle) * 8,
-        Math.sin(angle) * 8,
-        Math.cos(angle) * 42,
-        Math.sin(angle) * 42,
-      );
-    }
+    this.p1HealthFill.width = this.barWidth * p1Ratio;
+    this.p2HealthFill.width = this.barWidth * p2Ratio;
 
-    this.tweens.add({
-      targets: spark,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      alpha: 0,
-      duration: 210,
-      onComplete: () => spark.destroy(),
-    });
+    this.p1HealthFill.setFillStyle(p1Ratio > 0.35 ? 0xffcc00 : 0xff3b30);
+    this.p2HealthFill.setFillStyle(p2Ratio > 0.35 ? 0xffcc00 : 0xff3b30);
+
+    const p1Sp =
+      this.fighter1.cooldowns.special > 0
+        ? `CD ${(this.fighter1.cooldowns.special / 1000).toFixed(1)}s`
+        : "READY";
+    const p2Sp =
+      this.fighter2.cooldowns.special > 0
+        ? `CD ${(this.fighter2.cooldowns.special / 1000).toFixed(1)}s`
+        : "READY";
+
+    this.p1StateBadge.setText(
+      `HP: ${this.fighter1.health} | ${this.fighter1.state} | SP: ${p1Sp}`,
+    );
+    this.p2StateBadge.setText(
+      `HP: ${this.fighter2.health} | ${this.fighter2.state} | SP: ${p2Sp}`,
+    );
+
+    const p1Face =
+      this.fighter1.facing === 1 ? "FACE: RIGHT ->" : "FACE: <- LEFT";
+    const p2Face =
+      this.fighter2.facing === 1 ? "FACE: RIGHT ->" : "FACE: <- LEFT";
+
+    void p1Input;
+    void p2Input;
+
+    this.movementDebugText.setText(
+      `RAMA X: ${Math.round(this.fighter1.x)} (${p1Face})   ||   JUN X: ${Math.round(this.fighter2.x)} (${p2Face})`,
+    );
   }
 
-  buildAnimationTestBar(width, height, p1Character, p2Character) {
-    const animKeys = Object.keys(CHARACTER_ANIMATIONS);
-    const spacingX = 96;
-    const startX = width / 2 - ((animKeys.length - 1) * spacingX) / 2;
+  handleCombatHit(event) {
+    const {
+      attacker,
+      defender,
+      attackSpec,
+      blocked,
+      damage,
+      impactX,
+      impactY,
+    } = event;
 
-    animKeys.forEach((animKey, index) => {
-      const bx = startX + index * spacingX;
-      createArcadeButton(
-        this,
-        bx,
-        height - 76,
-        animKey.toUpperCase(),
-        () => {
-          this.triggerPreviewAction(1, p1Character, animKey);
-          this.triggerPreviewAction(2, p2Character, animKey);
-        },
-        { width: 88, height: 30, accentColor: 0xff9f0a, fontSize: "12px" },
-      );
-    });
+    soundManager.playHit(attackSpec.state, blocked);
+    this.effectsManager.spawnHitEffect(
+      impactX,
+      impactY,
+      attackSpec.state,
+      blocked,
+      attacker.facing,
+    );
+    this.effectsManager.triggerImpactCameraFeedback(attackSpec.state, blocked);
 
+    const popupLabel = blocked ? `BLOCK -${damage}` : `-${damage} HP`;
+    const popupColor = blocked
+      ? "#64d2ff"
+      : attackSpec.state === "SPECIAL"
+        ? "#ff3b30"
+        : "#ffd60a";
+    this.effectsManager.spawnFloatingPopup(
+      defender.x,
+      defender.y - 220,
+      popupLabel,
+      popupColor,
+    );
+
+    const actionLabel = blocked ? "BLOCKED" : `${attackSpec.state} HIT`;
+    this.combatFeedText.setText(
+      `${attacker.characterData.name} -> ${defender.characterData.name}: ${actionLabel} (-${damage} HP)`,
+    );
+
+    if (defender.health <= 0) {
+      const winner = attacker;
+      const loser = defender;
+      winner.sprite.play(`${winner.characterData.id}_victory`, true);
+      loser.sprite.play(`${loser.characterData.id}_defeat`, true);
+
+      this.time.delayedCall(1100, () => {
+        this.fighter1.resetFighter();
+        this.fighter2.resetFighter();
+        this.combatFeedText.setText(
+          "KO! SPARRING HEALTH RESET FOR CONTINUOUS TESTING",
+        );
+      });
+    }
+  }
+
+  drawDebugBoxes() {
+    this.debugGraphics.clear();
+    if (!this.showDebugBoxes) return;
+
+    this.debugGraphics.lineStyle(2, 0x30d158, 0.9);
+    this.debugGraphics.strokeRectShape(this.fighter1.hurtbox);
+    this.debugGraphics.strokeRectShape(this.fighter2.hurtbox);
+
+    this.debugGraphics.lineStyle(3, 0xff3b30, 1);
+    if (this.fighter1.isHitboxActive) {
+      this.debugGraphics.strokeRectShape(this.fighter1.hitbox);
+    }
+    if (this.fighter2.isHitboxActive) {
+      this.debugGraphics.strokeRectShape(this.fighter2.hitbox);
+    }
+  }
+
+  buildBottomUtilityBar(width, height) {
     createArcadeButton(
       this,
-      160,
+      165,
       height - 28,
       "CHANGE FIGHTER",
       () => {
         this.scene.start("CharacterScene");
       },
-      { width: 210, height: 34, accentColor: 0x8e8e93, fontSize: "14px" },
+      { width: 200, height: 34, accentColor: 0x8e8e93, fontSize: "14px" },
+    );
+
+    const btnDebug = createArcadeButton(
+      this,
+      width / 2 - 115,
+      height - 28,
+      "HITBOX DEBUG: OFF",
+      () => {
+        this.showDebugBoxes = !this.showDebugBoxes;
+        btnDebug.setLabel(
+          `HITBOX DEBUG: ${this.showDebugBoxes ? "ON" : "OFF"}`,
+        );
+      },
+      { width: 210, height: 34, accentColor: 0x0a84ff, fontSize: "14px" },
     );
 
     createArcadeButton(
       this,
-      width - 160,
+      width / 2 + 115,
+      height - 28,
+      "RESET HP & POS",
+      () => {
+        this.fighter1.resetFighter();
+        this.fighter2.resetFighter();
+        this.combatFeedText.setText("POSITIONS & HEALTH RESET");
+      },
+      { width: 210, height: 34, accentColor: 0xff9f0a, fontSize: "14px" },
+    );
+
+    createArcadeButton(
+      this,
+      width - 165,
       height - 28,
       "MAIN MENU",
       () => {
         this.scene.start("MenuScene");
       },
-      { width: 210, height: 34, accentColor: 0xff3b30, fontSize: "14px" },
+      { width: 200, height: 34, accentColor: 0xff3b30, fontSize: "14px" },
     );
   }
 
-  triggerPreviewAction(playerNum, char, animKey) {
-    const sprite =
-      playerNum === 1 ? this.p1FighterSprite : this.p2FighterSprite;
-    sprite.play(`${char.id}_${animKey}`, true);
+  update(time, delta) {
+    if (!this.fighter1 || !this.fighter2 || !this.inputManager) return;
 
-    if (animKey === "punch" || animKey === "kick" || animKey === "special") {
-      const sparkX = playerNum === 1 ? sprite.x + 85 : sprite.x - 85;
-      const sparkY = sprite.y - 25;
-      this.spawnTekkenHitSpark(
-        sparkX,
-        sparkY,
-        animKey === "special" ? 0xff3b30 : 0xffd60a,
-      );
-    }
-  }
+    const p1Input = this.inputManager.getPlayerState(1);
+    const p2Input = this.inputManager.getPlayerState(2);
 
-  update() {
-    if (!this.inputManager) return;
-    const { p1Character, p2Character } = GameSession;
+    this.fighter1.update(delta, p1Input);
+    this.fighter2.update(delta, p2Input);
 
-    const p1 = this.inputManager.getPlayerState(1);
-    const p2 = this.inputManager.getPlayerState(2);
-
-    if (p1.punchPressed) this.triggerPreviewAction(1, p1Character, "punch");
-    else if (p1.kickPressed) this.triggerPreviewAction(1, p1Character, "kick");
-    else if (p1.specialPressed)
-      this.triggerPreviewAction(1, p1Character, "special");
-    else if (p1.jumpPressed) this.triggerPreviewAction(1, p1Character, "jump");
-    else if (p1.blockHeld) this.triggerPreviewAction(1, p1Character, "block");
-    else if (p1.down) this.triggerPreviewAction(1, p1Character, "crouch");
-    else if (p1.left || p1.right) {
-      const currentKey = this.p1FighterSprite.anims.currentAnim?.key;
-      if (currentKey === `${p1Character.id}_idle`) {
-        this.p1FighterSprite.play(`${p1Character.id}_walk`, true);
-      }
-    }
-
-    if (p2.punchPressed) this.triggerPreviewAction(2, p2Character, "punch");
-    else if (p2.kickPressed) this.triggerPreviewAction(2, p2Character, "kick");
-    else if (p2.specialPressed)
-      this.triggerPreviewAction(2, p2Character, "special");
-    else if (p2.jumpPressed) this.triggerPreviewAction(2, p2Character, "jump");
-    else if (p2.blockHeld) this.triggerPreviewAction(2, p2Character, "block");
-    else if (p2.down) this.triggerPreviewAction(2, p2Character, "crouch");
-    else if (p2.left || p2.right) {
-      const currentKey = this.p2FighterSprite.anims.currentAnim?.key;
-      if (currentKey === `${p2Character.id}_idle`) {
-        this.p2FighterSprite.play(`${p2Character.id}_walk`, true);
-      }
-    }
+    this.combatSystem.update();
+    this.updateHUD(p1Input, p2Input);
+    this.drawDebugBoxes();
+    this.inputManager.clearJustPressed();
   }
 }
