@@ -8,7 +8,7 @@ export function buildCharacterTextures(scene, characters) {
   characters.forEach((char) => {
     const rawKey = resolveValidRawTextureKey(scene, char);
     let extractedPoses = rawKey
-      ? extractFourPosesFromSheet(scene, rawKey)
+      ? extractFourPosesFromSheet(scene, rawKey, char)
       : null;
     if (!extractedPoses || extractedPoses.length < 4) {
       extractedPoses = synthesizePreRenderedFighterPoses(char);
@@ -39,7 +39,7 @@ function resolveValidRawTextureKey(scene, char) {
   return null;
 }
 
-function extractFourPosesFromSheet(scene, rawKey) {
+function extractFourPosesFromSheet(scene, rawKey, char) {
   const sourceImg = scene.textures.get(rawKey).getSourceImage();
   if (!sourceImg || !sourceImg.width || sourceImg.width < 64) return null;
 
@@ -98,6 +98,11 @@ function extractFourPosesFromSheet(scene, rawKey) {
     const drawX = (FRAME_WIDTH - drawW) / 2;
     const drawY = FRAME_HEIGHT - 18 - drawH;
 
+    pCtx.save();
+    if (i === 3 && char && char.role === "player2") {
+      pCtx.translate(FRAME_WIDTH, 0);
+      pCtx.scale(-1, 1);
+    }
     pCtx.drawImage(
       cleanCanvas,
       bounds.x,
@@ -109,10 +114,41 @@ function extractFourPosesFromSheet(scene, rawKey) {
       drawW,
       drawH,
     );
+    pCtx.restore();
     poses.push(poseCanvas);
   }
 
+  void char;
   return poses;
+}
+
+function isKickPoseFacingLeft(ctx, bounds) {
+  const midX = bounds.x + Math.floor(bounds.w / 2);
+  const upperH = Math.floor(bounds.h * 0.65);
+  const leftData = ctx.getImageData(
+    bounds.x,
+    bounds.y,
+    Math.max(1, midX - bounds.x),
+    Math.max(1, upperH),
+  ).data;
+  const rightData = ctx.getImageData(
+    midX,
+    bounds.y,
+    Math.max(1, bounds.x + bounds.w - midX),
+    Math.max(1, upperH),
+  ).data;
+
+  let leftMass = 0;
+  let rightMass = 0;
+
+  for (let i = 3; i < leftData.length; i += 4) {
+    if (leftData[i] > 40) leftMass++;
+  }
+  for (let i = 3; i < rightData.length; i += 4) {
+    if (rightData[i] > 40) rightMass++;
+  }
+
+  return leftMass >= rightMass * 0.85;
 }
 
 function findContentBounds(ctx, startX, startY, width, height) {
@@ -583,6 +619,7 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   const walkPose = poses[1];
   const punchPose = poses[2];
   const kickPose = poses[3];
+  const isP1 = char.role === "player1";
 
   let selectedPose = idlePose;
   let offsetX = 0;
@@ -591,6 +628,7 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   let scaleY = 1;
   let rotation = 0;
   let filterEffect = "none";
+  let drawStrikeArc = null;
 
   const footAnchorX = FRAME_WIDTH / 2;
   const footAnchorY = FRAME_HEIGHT - 18;
@@ -602,12 +640,12 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
     offsetY = -breath * 2;
   } else if (stateName === "walk") {
     selectedPose = colIndex % 2 === 0 ? idlePose : walkPose;
-    offsetX = colIndex === 1 ? 6 : colIndex === 3 ? -6 : 0;
+    offsetX = colIndex === 1 ? 8 : colIndex === 3 ? -6 : 0;
     offsetY = colIndex % 2 === 1 ? -5 : 0;
   } else if (stateName === "jump") {
     selectedPose = colIndex === 1 || colIndex === 2 ? kickPose : walkPose;
-    offsetY = colIndex === 1 || colIndex === 2 ? -36 : -18;
-    rotation = -0.05;
+    offsetY = colIndex === 1 || colIndex === 2 ? -34 : -16;
+    rotation = -0.04;
   } else if (stateName === "crouch") {
     selectedPose = idlePose;
     scaleY = 0.78;
@@ -615,39 +653,73 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   } else if (stateName === "punch") {
     if (colIndex === 0) {
       selectedPose = walkPose;
-      offsetX = 4;
-    } else if (colIndex === 1 || colIndex === 2) {
+      offsetX = -8;
+      rotation = -0.04;
+    } else if (colIndex === 1) {
       selectedPose = punchPose;
-      offsetX = colIndex === 1 ? 16 : 12;
+      offsetX = 20;
+      rotation = 0.05;
+      drawStrikeArc = "punch";
+    } else if (colIndex === 2) {
+      selectedPose = punchPose;
+      offsetX = 14;
+      rotation = 0.03;
     } else {
       selectedPose = idlePose;
+      offsetX = 3;
     }
   } else if (stateName === "kick") {
     if (colIndex === 0) {
       selectedPose = walkPose;
-    } else if (colIndex === 1 || colIndex === 2) {
+      offsetX = -6;
+      rotation = -0.05;
+    } else if (colIndex === 1) {
       selectedPose = kickPose;
-      offsetX = colIndex === 1 ? 14 : 10;
+      offsetX = 18;
       rotation = -0.04;
+      drawStrikeArc = "kick";
+    } else if (colIndex === 2) {
+      selectedPose = kickPose;
+      offsetX = 12;
+      rotation = -0.02;
     } else {
       selectedPose = idlePose;
+      offsetX = 2;
     }
   } else if (stateName === "block") {
     selectedPose = idlePose;
-    offsetX = -8;
-    scaleX = 0.96;
-    filterEffect = "brightness(0.92) contrast(1.1)";
+    offsetX = -10;
+    scaleX = 0.95;
+    rotation = -0.03;
+    filterEffect = "brightness(0.95) contrast(1.12)";
   } else if (stateName === "hit") {
     selectedPose = walkPose;
-    offsetX = -14;
-    rotation = -0.14;
+    offsetX = colIndex === 1 || colIndex === 2 ? -18 : -10;
+    rotation = colIndex === 1 || colIndex === 2 ? -0.16 : -0.09;
     filterEffect =
-      colIndex % 2 === 0 ? "brightness(1.35) saturate(1.4)" : "none";
+      colIndex === 0 || colIndex === 1
+        ? "brightness(1.3) saturate(1.35)"
+        : "none";
   } else if (stateName === "special") {
-    selectedPose =
-      colIndex === 0 ? walkPose : colIndex === 3 ? kickPose : punchPose;
-    offsetX = colIndex >= 1 ? 20 : -6;
-    filterEffect = "contrast(1.2) saturate(1.35)";
+    if (colIndex === 0) {
+      selectedPose = idlePose;
+      offsetX = -12;
+      scaleY = 0.94;
+    } else if (colIndex === 1) {
+      selectedPose = punchPose;
+      offsetX = 24;
+      rotation = 0.06;
+      drawStrikeArc = "special";
+    } else if (colIndex === 2) {
+      selectedPose = kickPose;
+      offsetX = 26;
+      rotation = -0.04;
+      drawStrikeArc = "special";
+    } else {
+      selectedPose = walkPose;
+      offsetX = 8;
+    }
+    filterEffect = "contrast(1.18) saturate(1.3)";
   } else if (stateName === "victory") {
     selectedPose = colIndex % 2 === 0 ? idlePose : punchPose;
     offsetY = colIndex % 2 === 1 ? -8 : 0;
@@ -669,7 +741,6 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
       footAnchorY - 135,
       110,
     );
-    const isP1 = char.role === "player1";
     auraGrad.addColorStop(
       0,
       isP1 ? "rgba(255, 70, 40, 0.55)" : "rgba(20, 160, 255, 0.55)",
@@ -689,6 +760,39 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   }
   ctx.drawImage(selectedPose, -footAnchorX, -footAnchorY);
   ctx.restore();
+
+  if (drawStrikeArc) {
+    ctx.save();
+    const arcColor =
+      drawStrikeArc === "special"
+        ? isP1
+          ? "rgba(255, 80, 40, 0.78)"
+          : "rgba(60, 190, 255, 0.78)"
+        : "rgba(255, 220, 90, 0.65)";
+    ctx.strokeStyle = arcColor;
+    ctx.lineWidth = drawStrikeArc === "special" ? 9 : 6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (drawStrikeArc === "Punch" || drawStrikeArc === "punch") {
+      ctx.moveTo(footAnchorX + 20, footAnchorY - 185);
+      ctx.quadraticCurveTo(
+        footAnchorX + 78,
+        footAnchorY - 190,
+        footAnchorX + 104,
+        footAnchorY - 178,
+      );
+    } else {
+      ctx.moveTo(footAnchorX + 16, footAnchorY - 110);
+      ctx.quadraticCurveTo(
+        footAnchorX + 86,
+        footAnchorY - 165,
+        footAnchorX + 108,
+        footAnchorY - 210,
+      );
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function registerCharacterAnimations(scene, char) {
