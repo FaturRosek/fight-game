@@ -170,9 +170,9 @@ export default class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const header = this.add
-      .text(width / 2, 130, "SELECT COMBAT MODE", {
+      .text(width / 2, 118, "SELECT COMBAT MODE", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "52px",
+        fontSize: "50px",
         color: "#ffffff",
         stroke: "#ff3b30",
         strokeThickness: 2,
@@ -180,18 +180,18 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const sub = this.add
-      .text(width / 2, 182, "Choose how you want to enter the arena", {
-        fontSize: "18px",
+      .text(width / 2, 168, "Choose how you want to enter the arena", {
+        fontSize: "17px",
         color: "#b0b0ba",
       })
       .setOrigin(0.5);
 
     const pveCard = this.createModeCard(
       width / 2 - 230,
-      height / 2 + 10,
+      height / 2 - 5,
       "PLAYER VS AI",
       "SINGLE PLAYER ARCADE",
-      "Fight against a computer-controlled opponent with adjustable difficulty.",
+      "Fight against computer-controlled JUN with adaptive tactical AI.",
       0xff3b30,
       () => {
         GameSession.mode = "PVE";
@@ -202,10 +202,10 @@ export default class MenuScene extends Phaser.Scene {
 
     const pvpCard = this.createModeCard(
       width / 2 + 230,
-      height / 2 + 10,
+      height / 2 - 5,
       "PLAYER VS PLAYER",
       "LOCAL 2-PLAYER VERSUS",
-      "Head-to-head local multiplayer on one keyboard. Test your reflexes.",
+      "Head-to-head local multiplayer on one keyboard (RAMA vs JUN).",
       0x0a84ff,
       () => {
         GameSession.mode = "PVP";
@@ -214,18 +214,50 @@ export default class MenuScene extends Phaser.Scene {
       },
     );
 
+    const diffs = ["Easy", "Normal", "Hard"];
+    const diffLabel = this.add
+      .text(width / 2 - 230, height / 2 + 158, "AI DIFFICULTY:", {
+        fontSize: "14px",
+        fontStyle: "bold",
+        color: "#ffd60a",
+      })
+      .setOrigin(0.5);
+
+    const btnCycleDiff = createArcadeButton(
+      this,
+      width / 2 - 230,
+      height / 2 + 194,
+      `DIFFICULTY: ${GameSession.settings.aiDifficulty.toUpperCase()}`,
+      () => {
+        const idx =
+          (diffs.indexOf(GameSession.settings.aiDifficulty) + 1) % diffs.length;
+        const nextDiff = diffs[idx];
+        saveSettings({ aiDifficulty: nextDiff });
+        btnCycleDiff.setLabel(`DIFFICULTY: ${nextDiff.toUpperCase()}`);
+      },
+      { width: 250, height: 38, accentColor: 0xff9f0a, fontSize: "15px" },
+    );
+
     const btnBack = createArcadeButton(
       this,
-      width / 2,
-      height - 105,
+      width / 2 + 230,
+      height / 2 + 194,
       "BACK TO MAIN MENU",
       () => {
         this.showMainPanel();
       },
-      { width: 280, height: 46, accentColor: 0x8e8e93, fontSize: "18px" },
+      { width: 250, height: 38, accentColor: 0x8e8e93, fontSize: "15px" },
     );
 
-    this.panelContainer.add([header, sub, pveCard, pvpCard, btnBack]);
+    this.panelContainer.add([
+      header,
+      sub,
+      pveCard,
+      pvpCard,
+      diffLabel,
+      btnCycleDiff,
+      btnBack,
+    ]);
   }
 
   createModeCard(x, y, title, subtitle, desc, accentHex, onSelect) {

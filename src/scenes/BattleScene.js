@@ -1,10 +1,15 @@
 import Phaser from "phaser";
 import Fighter from "../entities/Fighter.js";
+import AIController from "../entities/AIController.js";
 import InputManager from "../systems/InputManager.js";
 import CombatSystem from "../systems/CombatSystem.js";
 import EffectsManager from "../systems/EffectsManager.js";
 import { soundManager } from "../systems/SoundManager.js";
-import { GameSession, createArcadeButton } from "../utils/helpers.js";
+import {
+  GameSession,
+  saveSettings,
+  createArcadeButton,
+} from "../utils/helpers.js";
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
@@ -13,9 +18,10 @@ export default class BattleScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-    const { arena, p1Character, p2Character } = GameSession;
+    const { arena, p1Character, p2Character, mode, settings } = GameSession;
     this.floorY = height * 0.84;
     this.showDebugBoxes = false;
+    this.isPVE = mode === "PVE";
 
     this.renderPerspectiveArena(arena, width, height);
     this.renderTekkenHUD(p1Character, p2Character, width);
@@ -39,6 +45,15 @@ export default class BattleScene extends Phaser.Scene {
     });
 
     this.inputManager = new InputManager(this);
+    this.aiController = this.isPVE
+      ? new AIController(
+          this,
+          this.fighter2,
+          this.fighter1,
+          settings.aiDifficulty,
+        )
+      : null;
+
     this.combatSystem = new CombatSystem(
       this,
       this.fighter1,
@@ -48,35 +63,29 @@ export default class BattleScene extends Phaser.Scene {
 
     this.debugGraphics = this.add.graphics();
 
+    const modeHeadline = this.isPVE
+      ? `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — P1 KEYS: [WASD + F,G,H,R]`
+      : "MODE: PLAYER VS PLAYER — P1: [WASD + F,G,H,R]  |  P2: [ARROWS + J,K,L,I]";
+
     this.combatFeedText = this.add
-      .text(
-        width / 2,
-        108,
-        "PHASE 5 COMBAT & FX READY — P1: [WASD + F,G,H,R]   |   P2: [ARROWS + J,K,L,I]",
-        {
-          fontSize: "13px",
-          fontStyle: "bold",
-          color: "#ffd60a",
-          backgroundColor: "#000000cc",
-          padding: { x: 12, y: 4 },
-        },
-      )
+      .text(width / 2, 108, modeHeadline, {
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#ffd60a",
+        backgroundColor: "#000000cc",
+        padding: { x: 12, y: 4 },
+      })
       .setOrigin(0.5);
 
     this.movementDebugText = this.add
-      .text(
-        width / 2,
-        138,
-        "P1: RIGHT -> | RAMA X: 370   ||   P2: <- LEFT | JUN X: 910",
-        {
-          fontFamily: "monospace",
-          fontSize: "13px",
-          fontStyle: "bold",
-          color: "#30d158",
-          backgroundColor: "#0a0a14dd",
-          padding: { x: 14, y: 5 },
-        },
-      )
+      .text(width / 2, 138, "RAMA X: 370   ||   JUN X: 910", {
+        fontFamily: "monospace",
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#30d158",
+        backgroundColor: "#0a0a14dd",
+        padding: { x: 14, y: 5 },
+      })
       .setOrigin(0.5);
 
     this.input.on("pointerdown", () => {
@@ -175,8 +184,9 @@ export default class BattleScene extends Phaser.Scene {
       strokeThickness: 5,
     });
 
+    const p2DisplayTitle = this.isPVE ? `${p2.name} [AI]` : p2.name;
     this.add
-      .text(width - 62, topY + 34, p2.name, {
+      .text(width - 62, topY + 34, p2DisplayTitle, {
         fontFamily: 'Impact, "Arial Black", sans-serif',
         fontSize: "26px",
         color: "#ffffff",
@@ -219,7 +229,7 @@ export default class BattleScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  updateHUD(p1Input, p2Input) {
+  updateHUD() {
     const p1Ratio = this.fighter1.health / this.fighter1.maxHealth;
     const p2Ratio = this.fighter2.health / this.fighter2.maxHealth;
 
@@ -241,20 +251,21 @@ export default class BattleScene extends Phaser.Scene {
     this.p1StateBadge.setText(
       `HP: ${this.fighter1.health} | ${this.fighter1.state} | SP: ${p1Sp}`,
     );
+
+    const aiInfo = this.aiController
+      ? ` | AI:${this.aiController.difficultyName.toUpperCase()}`
+      : "";
     this.p2StateBadge.setText(
-      `HP: ${this.fighter2.health} | ${this.fighter2.state} | SP: ${p2Sp}`,
+      `HP: ${this.fighter2.health} | ${this.fighter2.state} | SP: ${p2Sp}${aiInfo}`,
     );
 
-    const p1Face =
-      this.fighter1.facing === 1 ? "FACE: RIGHT ->" : "FACE: <- LEFT";
-    const p2Face =
-      this.fighter2.facing === 1 ? "FACE: RIGHT ->" : "FACE: <- LEFT";
-
-    void p1Input;
-    void p2Input;
+    const dist = Math.round(Math.abs(this.fighter2.x - this.fighter1.x));
+    const aiTacticLabel = this.aiController
+      ? ` | AI TACTIC: ${this.aiController.currentTactic}`
+      : "";
 
     this.movementDebugText.setText(
-      `RAMA X: ${Math.round(this.fighter1.x)} (${p1Face})   ||   JUN X: ${Math.round(this.fighter2.x)} (${p2Face})`,
+      `RAMA X: ${Math.round(this.fighter1.x)}  ||  JUN X: ${Math.round(this.fighter2.x)}  ||  DIST: ${dist}px${aiTacticLabel}`,
     );
   }
 
@@ -306,6 +317,7 @@ export default class BattleScene extends Phaser.Scene {
       this.time.delayedCall(1100, () => {
         this.fighter1.resetFighter();
         this.fighter2.resetFighter();
+        if (this.aiController) this.aiController.reset();
         this.combatFeedText.setText(
           "KO! SPARRING HEALTH RESET FOR CONTINUOUS TESTING",
         );
@@ -333,18 +345,18 @@ export default class BattleScene extends Phaser.Scene {
   buildBottomUtilityBar(width, height) {
     createArcadeButton(
       this,
-      165,
+      140,
       height - 28,
       "CHANGE FIGHTER",
       () => {
         this.scene.start("CharacterScene");
       },
-      { width: 200, height: 34, accentColor: 0x8e8e93, fontSize: "14px" },
+      { width: 185, height: 34, accentColor: 0x8e8e93, fontSize: "13px" },
     );
 
     const btnDebug = createArcadeButton(
       this,
-      width / 2 - 115,
+      355,
       height - 28,
       "HITBOX DEBUG: OFF",
       () => {
@@ -353,31 +365,55 @@ export default class BattleScene extends Phaser.Scene {
           `HITBOX DEBUG: ${this.showDebugBoxes ? "ON" : "OFF"}`,
         );
       },
-      { width: 210, height: 34, accentColor: 0x0a84ff, fontSize: "14px" },
+      { width: 195, height: 34, accentColor: 0x0a84ff, fontSize: "13px" },
+    );
+
+    const diffs = ["Easy", "Normal", "Hard"];
+    const btnDiff = createArcadeButton(
+      this,
+      580,
+      height - 28,
+      this.isPVE
+        ? `AI: ${GameSession.settings.aiDifficulty.toUpperCase()}`
+        : "MODE: 2P LOCAL",
+      () => {
+        if (!this.isPVE || !this.aiController) return;
+        const idx =
+          (diffs.indexOf(GameSession.settings.aiDifficulty) + 1) % diffs.length;
+        const nextDiff = diffs[idx];
+        saveSettings({ aiDifficulty: nextDiff });
+        this.aiController.setDifficulty(nextDiff);
+        btnDiff.setLabel(`AI: ${nextDiff.toUpperCase()}`);
+        this.combatFeedText.setText(
+          `AI DIFFICULTY CHANGED TO ${nextDiff.toUpperCase()}`,
+        );
+      },
+      { width: 205, height: 34, accentColor: 0x30d158, fontSize: "13px" },
     );
 
     createArcadeButton(
       this,
-      width / 2 + 115,
+      815,
       height - 28,
       "RESET HP & POS",
       () => {
         this.fighter1.resetFighter();
         this.fighter2.resetFighter();
+        if (this.aiController) this.aiController.reset();
         this.combatFeedText.setText("POSITIONS & HEALTH RESET");
       },
-      { width: 210, height: 34, accentColor: 0xff9f0a, fontSize: "14px" },
+      { width: 195, height: 34, accentColor: 0xff9f0a, fontSize: "13px" },
     );
 
     createArcadeButton(
       this,
-      width - 165,
+      width - 140,
       height - 28,
       "MAIN MENU",
       () => {
         this.scene.start("MenuScene");
       },
-      { width: 200, height: 34, accentColor: 0xff3b30, fontSize: "14px" },
+      { width: 185, height: 34, accentColor: 0xff3b30, fontSize: "13px" },
     );
   }
 
@@ -385,13 +421,16 @@ export default class BattleScene extends Phaser.Scene {
     if (!this.fighter1 || !this.fighter2 || !this.inputManager) return;
 
     const p1Input = this.inputManager.getPlayerState(1);
-    const p2Input = this.inputManager.getPlayerState(2);
+    const p2Input =
+      this.isPVE && this.aiController
+        ? this.aiController.getInputState(delta)
+        : this.inputManager.getPlayerState(2);
 
     this.fighter1.update(delta, p1Input);
     this.fighter2.update(delta, p2Input);
 
     this.combatSystem.update();
-    this.updateHUD(p1Input, p2Input);
+    this.updateHUD();
     this.drawDebugBoxes();
     this.inputManager.clearJustPressed();
   }
