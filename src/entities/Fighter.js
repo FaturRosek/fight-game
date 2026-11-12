@@ -14,6 +14,7 @@ export default class Fighter {
     this.groundY = config.groundY;
     this.startX = config.x;
     this.defaultFacing = config.facing || 1;
+    this.baseScale = 1.05;
 
     this.x = config.x;
     this.y = config.groundY;
@@ -28,6 +29,14 @@ export default class Fighter {
     this.state = FIGHTER_STATES.IDLE;
 
     this.isGrounded = true;
+    this.isRunning = false;
+    this.lastMoveDir = 0;
+    this.lastMoveTapTime = 0;
+    this.wasLeftHeld = false;
+    this.wasRightHeld = false;
+    this.skidParticleTimerMs = 0;
+    this.afterimageTimerMs = 0;
+
     this.activeAttackSpec = null;
     this.attackElapsedMs = 0;
     this.hasHitCurrentAttack = false;
@@ -40,18 +49,27 @@ export default class Fighter {
       special: 0,
     };
 
-    this.shadow = scene.add.ellipse(
-      this.x,
-      this.groundY - 6,
-      130,
-      24,
-      0x000000,
-      0.62,
-    );
+    this.shadow = scene.add
+      .ellipse(this.x, this.groundY - 6, 130, 24, 0x000000, 0.62)
+      .setDepth(10);
     this.sprite = scene.add
       .sprite(this.x, this.y, this.characterData.textureKey, 0)
       .setOrigin(0.5, 1)
-      .setScale(1.05);
+      .setScale(this.baseScale)
+      .setDepth(20);
+
+    this.sprite.on("animationcomplete", () => {
+      if (
+        !this.activeAttackSpec &&
+        this.state !== FIGHTER_STATES.HIT &&
+        this.state !== FIGHTER_STATES.BLOCK &&
+        this.state !== FIGHTER_STATES.CROUCH &&
+        this.isGrounded &&
+        this.velocityX === 0
+      ) {
+        this.playStateAnimation(FIGHTER_STATES.IDLE, true);
+      }
+    });
 
     this.hurtbox = new Phaser.Geom.Rectangle(0, 0, 74, 210);
     this.hitbox = new Phaser.Geom.Rectangle(0, 0, 0, 0);
@@ -70,6 +88,7 @@ export default class Fighter {
     this.facing = this.defaultFacing;
     this.health = this.maxHealth;
     this.isGrounded = true;
+    this.isRunning = false;
     this.activeAttackSpec = null;
     this.attackElapsedMs = 0;
     this.hasHitCurrentAttack = false;
@@ -79,6 +98,7 @@ export default class Fighter {
     this.cooldowns.kick = 0;
     this.cooldowns.special = 0;
     this.sprite.clearTint();
+    this.sprite.setScale(this.baseScale);
     this.setState(FIGHTER_STATES.IDLE, true);
     this.updateBounds();
     this.syncVisuals();
@@ -101,6 +121,22 @@ export default class Fighter {
 
   applyHitStop(durationMs = 55) {
     this.hitStopMs = Math.max(this.hitStopMs, durationMs);
+  }
+
+  triggerTransitionPulse(scaleXFactor, scaleYFactor, durationMs = 95) {
+    if (!this.sprite || !this.sprite.active) return;
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.sprite.setScale(
+      this.baseScale * scaleXFactor,
+      this.baseScale * scaleYFactor,
+    );
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleX: this.baseScale,
+      scaleY: this.baseScale,
+      duration: durationMs,
+      ease: "Quad.easeOut",
+    });
   }
 
   update(deltaMs, inputState) {
@@ -145,17 +181,58 @@ export default class Fighter {
       this.handlePlayerInput(inputState);
     }
 
-    this.applyPhysics(dt);
+    this.applyPhysics(dt, safeDeltaMs);
     this.updateBounds();
     this.syncVisuals();
+  }
+
+  detectRunDoubleTap(input) {
+    const now = this.scene.time.now;
+    const leftJustPressed = input.left && !this.wasLeftHeld;
+    const rightJustPressed = input.right && !this.wasRightHeld;
+
+    this.wasLeftHeld = Boolean(input.left);
+    this.wasRightHeld = Boolean(input.right);
+
+    if (leftJustPressed) {
+      if (
+        this.lastMoveDir === -1 &&
+        now - this.lastMoveTapTime <= COMBAT_CONFIG.doubleTapWindowMs
+      ) {
+        this.isRunning = true;
+        if (this.scene.effectsManager && this.isGrounded) {
+          this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 3);
+        }
+      }
+      this.lastMoveDir = -1;
+      this.lastMoveTapTime = now;
+    } else if (rightJustPressed) {
+      if (
+        this.lastMoveDir === 1 &&
+        now - this.lastMoveTapTime <= COMBAT_CONFIG.doubleTapWindowMs
+      ) {
+        this.isRunning = true;
+        if (this.scene.effectsManager && this.isGrounded) {
+          this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 3);
+        }
+      }
+      this.lastMoveDir = 1;
+      this.lastMoveTapTime = now;
+    }
+
+    if (!input.left && !input.right) {
+      this.isRunning = false;
+    }
   }
 
   handlePlayerInput(input) {
     if (!input) {
       this.velocityX = 0;
+      this.isRunning = false;
       return;
     }
 
+    this.detectRunDoubleTap(input);
     const moveDir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
     if (input.specialPressed && this.canTriggerAttack("special")) {
@@ -175,16 +252,22 @@ export default class Fighter {
 
     if (input.blockHeld && this.isGrounded) {
       this.velocityX = 0;
+      this.isRunning = false;
       this.faceTowardsOpponent();
       this.setState(FIGHTER_STATES.BLOCK);
       return;
     }
 
+    const activeSpeed = this.isRunning
+      ? COMBAT_CONFIG.runSpeed
+      : COMBAT_CONFIG.walkSpeed;
+
     if (input.jumpPressed && this.isGrounded) {
       this.isGrounded = false;
       this.velocityY = COMBAT_CONFIG.jumpVelocity;
-      this.velocityX = moveDir * COMBAT_CONFIG.walkSpeed * 0.9;
+      this.velocityX = moveDir * activeSpeed * 0.9;
       this.setState(FIGHTER_STATES.JUMP, true);
+      this.triggerTransitionPulse(0.92, 1.09, 120);
       soundManager.playJump();
       if (this.scene.effectsManager) {
         this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 4);
@@ -193,19 +276,23 @@ export default class Fighter {
     }
 
     if (!this.isGrounded) {
-      this.velocityX = moveDir * COMBAT_CONFIG.walkSpeed * 0.85;
+      this.velocityX = moveDir * activeSpeed * 0.85;
       return;
     }
 
     if (input.down && moveDir === 0) {
       this.velocityX = 0;
+      this.isRunning = false;
+      if (this.state !== FIGHTER_STATES.CROUCH) {
+        this.triggerTransitionPulse(1.06, 0.92, 85);
+      }
       this.setState(FIGHTER_STATES.CROUCH);
       return;
     }
 
     if (moveDir !== 0) {
-      this.velocityX = moveDir * COMBAT_CONFIG.walkSpeed;
-      this.setState(FIGHTER_STATES.WALK);
+      this.velocityX = moveDir * activeSpeed;
+      this.setState(this.isRunning ? FIGHTER_STATES.RUN : FIGHTER_STATES.WALK);
     } else {
       this.velocityX = 0;
       this.setState(FIGHTER_STATES.IDLE);
@@ -233,18 +320,22 @@ export default class Fighter {
     this.attackElapsedMs = 0;
     this.hasHitCurrentAttack = false;
     this.isHitboxActive = false;
+    this.afterimageTimerMs = 0;
     this.cooldowns[attackKey] = spec.cooldownMs;
 
     if (this.isGrounded) {
       this.velocityX = 0;
     }
 
+    this.triggerTransitionPulse(1.05, 0.97, 80);
     soundManager.playSwing(attackKey);
+
     if (attackKey === "special" && this.scene.effectsManager) {
       this.scene.effectsManager.spawnSpecialCastFlash(
-        this.x + this.facing * 28,
+        this.x + this.facing * 32,
         this.y - 135,
         this.characterData.color,
+        this.facing,
       );
     }
 
@@ -268,6 +359,17 @@ export default class Fighter {
     this.isHitboxActive =
       !this.hasHitCurrentAttack && inTimeWindow && inStrikeFrame;
 
+    if (spec.state === "SPECIAL" && inTimeWindow && this.scene.effectsManager) {
+      this.afterimageTimerMs += deltaMs;
+      if (this.afterimageTimerMs >= 55) {
+        this.afterimageTimerMs = 0;
+        this.scene.effectsManager.spawnAfterimage(
+          this.sprite,
+          this.characterData.color,
+        );
+      }
+    }
+
     if (this.attackElapsedMs >= totalDuration) {
       this.activeAttackSpec = null;
       this.isHitboxActive = false;
@@ -280,10 +382,22 @@ export default class Fighter {
     }
   }
 
-  applyPhysics(dt) {
+  applyPhysics(dt, deltaMs = 16.67) {
     if (Math.abs(this.knockbackVelocity) > 5) {
       this.x += this.knockbackVelocity * dt;
       this.knockbackVelocity *= Math.pow(0.035, dt);
+
+      if (
+        this.isGrounded &&
+        Math.abs(this.knockbackVelocity) > 130 &&
+        this.scene.effectsManager
+      ) {
+        this.skidParticleTimerMs += deltaMs;
+        if (this.skidParticleTimerMs >= 65) {
+          this.skidParticleTimerMs = 0;
+          this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 1);
+        }
+      }
     } else {
       this.knockbackVelocity = 0;
     }
@@ -294,7 +408,7 @@ export default class Fighter {
       this.activeAttackSpec &&
       this.attackElapsedMs < this.activeAttackSpec.startupMs
     ) {
-      this.x += this.facing * 45 * dt;
+      this.x += this.facing * 48 * dt;
     }
 
     if (!this.isGrounded) {
@@ -305,6 +419,7 @@ export default class Fighter {
         this.y = this.groundY;
         this.velocityY = 0;
         this.isGrounded = true;
+        this.triggerTransitionPulse(1.08, 0.91, 105);
         soundManager.playLand();
         if (this.scene.effectsManager) {
           this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 3);
@@ -361,6 +476,7 @@ export default class Fighter {
 
     if (isBlocking) {
       this.stunTimerMs = attackSpec.blockStunMs;
+      this.triggerTransitionPulse(0.95, 1.03, 90);
       this.sprite.setTint(0x64d2ff);
       this.scene.time.delayedCall(120, () => {
         if (this.sprite && this.sprite.active) this.sprite.clearTint();
@@ -370,9 +486,17 @@ export default class Fighter {
 
     this.stunTimerMs = attackSpec.hitStunMs;
     this.setState(FIGHTER_STATES.HIT, true);
+    this.triggerTransitionPulse(1.09, 0.92, 120);
 
     if (this.scene.effectsManager) {
-      this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 2);
+      const isHeavyHit =
+        attackSpec.state === "KICK" || attackSpec.state === "SPECIAL";
+      this.scene.effectsManager.spawnKnockbackBurst(
+        this.x,
+        this.groundY,
+        incomingDir,
+        isHeavyHit,
+      );
     }
 
     this.sprite.setTint(0xff453a);
@@ -416,6 +540,7 @@ export default class Fighter {
     const animMap = {
       [FIGHTER_STATES.IDLE]: "idle",
       [FIGHTER_STATES.WALK]: "walk",
+      [FIGHTER_STATES.RUN]: "run",
       [FIGHTER_STATES.JUMP]: "jump",
       [FIGHTER_STATES.CROUCH]: "crouch",
       [FIGHTER_STATES.PUNCH]: "punch",
