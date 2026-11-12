@@ -632,38 +632,59 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
 
   const footAnchorX = FRAME_WIDTH / 2;
   const footAnchorY = FRAME_HEIGHT - 18;
+  const cycleAngle = (colIndex / FRAMES_PER_ROW) * Math.PI * 2;
 
   if (stateName === "idle") {
     selectedPose = idlePose;
-    const breath = Math.sin((colIndex / 4) * Math.PI * 2);
-    scaleY = 1 + breath * 0.018;
-    offsetY = -breath * 2;
+    const breath = Math.sin(cycleAngle);
+    scaleY = 1 + breath * 0.016;
+    scaleX = 1 - breath * 0.008;
+    offsetY = -Math.abs(breath) * 2;
   } else if (stateName === "walk") {
     selectedPose = colIndex % 2 === 0 ? idlePose : walkPose;
-    offsetX = colIndex === 1 ? 8 : colIndex === 3 ? -6 : 0;
-    offsetY = colIndex % 2 === 1 ? -5 : 0;
+    offsetX = colIndex === 1 ? 7 : colIndex === 3 ? -5 : 0;
+    offsetY = colIndex % 2 === 1 ? -4 : 0;
+    rotation = colIndex === 1 ? 0.025 : colIndex === 3 ? -0.02 : 0;
+  } else if (stateName === "run") {
+    selectedPose = colIndex % 2 === 0 ? walkPose : idlePose;
+    offsetX = colIndex === 1 || colIndex === 2 ? 12 : 4;
+    offsetY = colIndex % 2 === 1 ? -7 : -2;
+    rotation = 0.085;
+    scaleX = 1.03;
   } else if (stateName === "jump") {
-    selectedPose = colIndex === 1 || colIndex === 2 ? kickPose : walkPose;
-    offsetY = colIndex === 1 || colIndex === 2 ? -34 : -16;
-    rotation = -0.04;
+    if (colIndex === 0) {
+      selectedPose = walkPose;
+      offsetY = -14;
+      scaleY = 1.04;
+    } else if (colIndex === 1 || colIndex === 2) {
+      selectedPose = kickPose;
+      offsetY = -32;
+      rotation = -0.035;
+    } else {
+      selectedPose = idlePose;
+      offsetY = -10;
+      scaleY = 0.96;
+    }
   } else if (stateName === "crouch") {
     selectedPose = idlePose;
-    scaleY = 0.78;
-    scaleX = 1.06;
+    const crouchDepth = colIndex === 0 ? 0.86 : 0.78;
+    scaleY = crouchDepth;
+    scaleX = colIndex === 0 ? 1.03 : 1.07;
   } else if (stateName === "punch") {
     if (colIndex === 0) {
       selectedPose = walkPose;
-      offsetX = -8;
-      rotation = -0.04;
+      offsetX = -7;
+      rotation = -0.035;
     } else if (colIndex === 1) {
       selectedPose = punchPose;
-      offsetX = 20;
-      rotation = 0.05;
+      offsetX = 18;
+      rotation = 0.045;
       drawStrikeArc = "punch";
     } else if (colIndex === 2) {
       selectedPose = punchPose;
-      offsetX = 14;
-      rotation = 0.03;
+      offsetX = 12;
+      rotation = 0.025;
+      drawStrikeArc = "punch_fade";
     } else {
       selectedPose = idlePose;
       offsetX = 3;
@@ -671,64 +692,66 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   } else if (stateName === "kick") {
     if (colIndex === 0) {
       selectedPose = walkPose;
-      offsetX = -6;
-      rotation = -0.05;
+      offsetX = -5;
+      rotation = -0.04;
     } else if (colIndex === 1) {
       selectedPose = kickPose;
-      offsetX = 18;
-      rotation = -0.04;
+      offsetX = 16;
+      rotation = -0.035;
       drawStrikeArc = "kick";
     } else if (colIndex === 2) {
       selectedPose = kickPose;
-      offsetX = 12;
-      rotation = -0.02;
+      offsetX = 10;
+      rotation = -0.015;
+      drawStrikeArc = "kick_fade";
     } else {
       selectedPose = idlePose;
       offsetX = 2;
     }
   } else if (stateName === "block") {
     selectedPose = idlePose;
-    offsetX = -10;
-    scaleX = 0.95;
+    offsetX = -9;
+    scaleX = 0.96;
+    scaleY = 0.98;
     rotation = -0.03;
-    filterEffect = "brightness(0.95) contrast(1.12)";
+    filterEffect = "brightness(0.96) contrast(1.1)";
   } else if (stateName === "hit") {
     selectedPose = walkPose;
-    offsetX = colIndex === 1 || colIndex === 2 ? -18 : -10;
-    rotation = colIndex === 1 || colIndex === 2 ? -0.16 : -0.09;
+    offsetX = colIndex === 1 || colIndex === 2 ? -16 : -8;
+    rotation = colIndex === 1 || colIndex === 2 ? -0.14 : -0.07;
     filterEffect =
       colIndex === 0 || colIndex === 1
-        ? "brightness(1.3) saturate(1.35)"
+        ? "brightness(1.32) saturate(1.3)"
         : "none";
   } else if (stateName === "special") {
     if (colIndex === 0) {
       selectedPose = idlePose;
-      offsetX = -12;
+      offsetX = -10;
       scaleY = 0.94;
     } else if (colIndex === 1) {
       selectedPose = punchPose;
-      offsetX = 24;
-      rotation = 0.06;
-      drawStrikeArc = "special";
+      offsetX = 22;
+      rotation = 0.055;
+      drawStrikeArc = "special_punch";
     } else if (colIndex === 2) {
       selectedPose = kickPose;
-      offsetX = 26;
-      rotation = -0.04;
-      drawStrikeArc = "special";
+      offsetX = 24;
+      rotation = -0.035;
+      drawStrikeArc = "special_kick";
     } else {
       selectedPose = walkPose;
-      offsetX = 8;
+      offsetX = 6;
     }
-    filterEffect = "contrast(1.18) saturate(1.3)";
+    filterEffect = "contrast(1.16) saturate(1.28)";
   } else if (stateName === "victory") {
     selectedPose = colIndex % 2 === 0 ? idlePose : punchPose;
     offsetY = colIndex % 2 === 1 ? -8 : 0;
   } else if (stateName === "defeat") {
     selectedPose = walkPose;
     const progress = (colIndex + 1) / 4;
-    rotation = -0.35 * progress;
-    scaleY = 1 - 0.25 * progress;
-    offsetY = 18 * progress;
+    rotation = -0.34 * progress;
+    scaleY = 1 - 0.24 * progress;
+    offsetY = 16 * progress;
   }
 
   ctx.save();
@@ -736,19 +759,19 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
     const auraGrad = ctx.createRadialGradient(
       footAnchorX + offsetX,
       footAnchorY - 135,
-      15,
+      12,
       footAnchorX + offsetX,
       footAnchorY - 135,
-      110,
+      105,
     );
     auraGrad.addColorStop(
       0,
-      isP1 ? "rgba(255, 70, 40, 0.55)" : "rgba(20, 160, 255, 0.55)",
+      isP1 ? "rgba(255, 65, 35, 0.52)" : "rgba(25, 165, 255, 0.52)",
     );
     auraGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = auraGrad;
     ctx.beginPath();
-    ctx.arc(footAnchorX + offsetX, footAnchorY - 135, 110, 0, Math.PI * 2);
+    ctx.arc(footAnchorX + offsetX, footAnchorY - 135, 105, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -763,31 +786,34 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
 
   if (drawStrikeArc) {
     ctx.save();
-    const arcColor =
-      drawStrikeArc === "special"
-        ? isP1
-          ? "rgba(255, 80, 40, 0.78)"
-          : "rgba(60, 190, 255, 0.78)"
-        : "rgba(255, 220, 90, 0.65)";
+    const isSpecialArc = drawStrikeArc.startsWith("special");
+    const isFade = drawStrikeArc.endsWith("fade");
+    const alpha = isFade ? 0.35 : isSpecialArc ? 0.82 : 0.65;
+    const arcColor = isSpecialArc
+      ? isP1
+        ? `rgba(255, 75, 35, ${alpha})`
+        : `rgba(55, 195, 255, ${alpha})`
+      : `rgba(255, 225, 95, ${alpha})`;
+
     ctx.strokeStyle = arcColor;
-    ctx.lineWidth = drawStrikeArc === "special" ? 9 : 6;
+    ctx.lineWidth = isSpecialArc ? 8 : isFade ? 4 : 6;
     ctx.lineCap = "round";
     ctx.beginPath();
-    if (drawStrikeArc === "Punch" || drawStrikeArc === "punch") {
-      ctx.moveTo(footAnchorX + 20, footAnchorY - 185);
+    if (drawStrikeArc.includes("punch")) {
+      ctx.moveTo(footAnchorX + 18, footAnchorY - 182);
       ctx.quadraticCurveTo(
-        footAnchorX + 78,
-        footAnchorY - 190,
-        footAnchorX + 104,
-        footAnchorY - 178,
+        footAnchorX + 74,
+        footAnchorY - 188,
+        footAnchorX + 102,
+        footAnchorY - 176,
       );
     } else {
-      ctx.moveTo(footAnchorX + 16, footAnchorY - 110);
+      ctx.moveTo(footAnchorX + 14, footAnchorY - 108);
       ctx.quadraticCurveTo(
-        footAnchorX + 86,
-        footAnchorY - 165,
-        footAnchorX + 108,
-        footAnchorY - 210,
+        footAnchorX + 84,
+        footAnchorY - 162,
+        footAnchorX + 106,
+        footAnchorY - 208,
       );
     }
     ctx.stroke();
