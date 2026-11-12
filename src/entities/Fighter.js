@@ -139,6 +139,19 @@ export default class Fighter {
     });
   }
 
+  enterRoundEndPose(endState) {
+    this.velocityX = 0;
+    this.isRunning = false;
+    this.activeAttackSpec = null;
+    this.isHitboxActive = false;
+    this.hasHitCurrentAttack = false;
+    this.attackElapsedMs = 0;
+    this.stunTimerMs = 0;
+    this.hitStopMs = 0;
+    this.sprite.clearTint();
+    this.setState(endState, true);
+  }
+
   update(deltaMs, inputState) {
     const safeDeltaMs = deltaMs > 0 ? Math.min(deltaMs, 50) : 16.67;
 
@@ -157,6 +170,17 @@ export default class Fighter {
 
     const dt = safeDeltaMs / 1000;
 
+    if (
+      this.state === FIGHTER_STATES.VICTORY ||
+      this.state === FIGHTER_STATES.DEFEAT
+    ) {
+      this.velocityX = 0;
+      this.applyPhysics(dt, safeDeltaMs);
+      this.updateBounds();
+      this.syncVisuals();
+      return;
+    }
+
     if (this.stunTimerMs > 0) {
       this.stunTimerMs = Math.max(0, this.stunTimerMs - safeDeltaMs);
     }
@@ -166,10 +190,7 @@ export default class Fighter {
       this.isHitboxActive = false;
       this.hasHitCurrentAttack = false;
       this.faceTowardsOpponent();
-      this.setState(
-        this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP,
-        true,
-      );
+      this.setState(this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP, true);
     }
 
     if (this.activeAttackSpec) {
@@ -236,16 +257,19 @@ export default class Fighter {
     const moveDir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
     if (input.specialPressed && this.canTriggerAttack("special")) {
+      if (input.consumeAction) input.consumeAction("special");
       this.startAttack("special");
       return;
     }
 
     if (input.punchPressed && this.canTriggerAttack("punch")) {
+      if (input.consumeAction) input.consumeAction("punch");
       this.startAttack("punch");
       return;
     }
 
     if (input.kickPressed && this.canTriggerAttack("kick")) {
+      if (input.consumeAction) input.consumeAction("kick");
       this.startAttack("kick");
       return;
     }
@@ -263,6 +287,7 @@ export default class Fighter {
       : COMBAT_CONFIG.walkSpeed;
 
     if (input.jumpPressed && this.isGrounded) {
+      if (input.consumeAction) input.consumeAction("jump");
       this.isGrounded = false;
       this.velocityY = COMBAT_CONFIG.jumpVelocity;
       this.velocityX = moveDir * activeSpeed * 0.9;
@@ -374,6 +399,7 @@ export default class Fighter {
       this.activeAttackSpec = null;
       this.isHitboxActive = false;
       this.hasHitCurrentAttack = false;
+      this.attackElapsedMs = 0;
       this.faceTowardsOpponent();
       this.setState(
         this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP,
@@ -538,25 +564,25 @@ export default class Fighter {
 
   playStateAnimation(stateName, forceRestart = false) {
     const animMap = {
-      [FIGHTER_STATES.IDLE]: "idle",
-      [FIGHTER_STATES.WALK]: "walk",
-      [FIGHTER_STATES.RUN]: "run",
-      [FIGHTER_STATES.JUMP]: "jump",
-      [FIGHTER_STATES.CROUCH]: "crouch",
-      [FIGHTER_STATES.PUNCH]: "punch",
-      [FIGHTER_STATES.KICK]: "kick",
-      [FIGHTER_STATES.BLOCK]: "block",
-      [FIGHTER_STATES.HIT]: "hit",
-      [FIGHTER_STATES.SPECIAL]: "special",
+      [FIGHTER_STATES.IDLE]: 'idle',
+      [FIGHTER_STATES.WALK]: 'walk',
+      [FIGHTER_STATES.RUN]: 'run',
+      [FIGHTER_STATES.JUMP]: 'jump',
+      [FIGHTER_STATES.CROUCH]: 'crouch',
+      [FIGHTER_STATES.PUNCH]: 'punch',
+      [FIGHTER_STATES.KICK]: 'kick',
+      [FIGHTER_STATES.BLOCK]: 'block',
+      [FIGHTER_STATES.HIT]: 'hit',
+      [FIGHTER_STATES.SPECIAL]: 'special',
+      [FIGHTER_STATES.VICTORY]: 'victory',
+      [FIGHTER_STATES.DEFEAT]: 'defeat'
     };
 
-    const animSuffix = animMap[stateName] || "idle";
+    const animSuffix = animMap[stateName] || 'idle';
     const animKey = `${this.characterData.id}_${animSuffix}`;
 
     if (this.scene.anims.exists(animKey)) {
-      const currentKey = this.sprite.anims.currentAnim
-        ? this.sprite.anims.currentAnim.key
-        : "";
+      const currentKey = this.sprite.anims.currentAnim ? this.sprite.anims.currentAnim.key : '';
       if (forceRestart || currentKey !== animKey) {
         this.sprite.play(animKey, true);
       }

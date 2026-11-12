@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { KEY_BINDINGS } from "../config/gameData.js";
+import { KEY_BINDINGS, COMBAT_CONFIG } from "../config/gameData.js";
 
 const NATIVE_CODE_MAP = {
   W: ["KeyW", "w", "W"],
@@ -14,11 +14,13 @@ const NATIVE_CODE_MAP = {
   DOWN: ["ArrowDown", "Down"],
   LEFT: ["ArrowLeft", "Left"],
   RIGHT: ["ArrowRight", "Right"],
-  J: ["KeyJ", "j", "J"],
-  K: ["KeyK", "k", "K"],
-  L: ["KeyL", "l", "L"],
-  I: ["KeyI", "i", "I"],
+  J: ["KeyJ", "j", "J", "Numpad1", "Digit1", "1"],
+  K: ["KeyK", "k", "K", "Numpad2", "Digit2", "2"],
+  L: ["KeyL", "l", "L", "Numpad3", "Digit3", "3"],
+  I: ["KeyI", "i", "I", "Numpad0", "Digit0", "0"],
 };
+
+const GAME_CODES = new Set(Object.values(NATIVE_CODE_MAP).flat());
 
 export default class InputManager {
   constructor(scene) {
@@ -34,16 +36,19 @@ export default class InputManager {
     this.pressedCodes = new Set();
     this.justPressedCodes = new Set();
 
+    this.p1Buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
+    this.p2Buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
+
     this.p1Keys = this.mapPlayerKeys(KEY_BINDINGS.player1);
     this.p2Keys = this.mapPlayerKeys(KEY_BINDINGS.player2);
 
     this.handleKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       const code = event.code || event.key;
+
       if (
-        code === "ArrowUp" ||
-        code === "ArrowDown" ||
-        code === "ArrowLeft" ||
-        code === "ArrowRight" ||
+        GAME_CODES.has(code) ||
+        GAME_CODES.has(event.key) ||
         code === "Space"
       ) {
         event.preventDefault();
@@ -53,6 +58,7 @@ export default class InputManager {
         this.justPressedCodes.add(code);
       }
       this.pressedCodes.add(code);
+
       if (event.key) {
         if (!this.pressedCodes.has(event.key)) {
           this.justPressedCodes.add(event.key);
@@ -74,6 +80,7 @@ export default class InputManager {
     this.handleWindowBlur = () => {
       this.pressedCodes.clear();
       this.justPressedCodes.clear();
+      this.resetBuffers();
     };
 
     window.addEventListener("keydown", this.handleKeyDown, { passive: false });
@@ -82,6 +89,15 @@ export default class InputManager {
 
     scene.events.once("shutdown", () => this.destroy());
     scene.events.once("destroy", () => this.destroy());
+  }
+
+  resetBuffers() {
+    Object.keys(this.p1Buffer).forEach((k) => {
+      this.p1Buffer[k] = 0;
+    });
+    Object.keys(this.p2Buffer).forEach((k) => {
+      this.p2Buffer[k] = 0;
+    });
   }
 
   mapPlayerKeys(bindingConfig) {
@@ -114,12 +130,13 @@ export default class InputManager {
     return false;
   }
 
-  isActionJustPressed(actionObj) {
+  checkRawJustPressed(actionObj) {
+    let triggered = false;
     if (
       actionObj.phaserKey &&
       Phaser.Input.Keyboard.JustDown(actionObj.phaserKey)
     ) {
-      return true;
+      triggered = true;
     }
     const candidates = NATIVE_CODE_MAP[actionObj.keyName] || [
       actionObj.keyName,
@@ -127,29 +144,50 @@ export default class InputManager {
     for (let i = 0; i < candidates.length; i++) {
       if (this.justPressedCodes.has(candidates[i])) {
         this.justPressedCodes.delete(candidates[i]);
-        return true;
+        triggered = true;
       }
     }
-    return false;
+    return triggered;
   }
 
-  getPlayerState(playerNumber) {
+  getPlayerState(playerNumber, deltaMs = 16.67) {
+    const safeDelta = deltaMs > 0 ? Math.min(deltaMs, 50) : 16.67;
     const keys = playerNumber === 1 ? this.p1Keys : this.p2Keys;
+    const buffer = playerNumber === 1 ? this.p1Buffer : this.p2Buffer;
+    const bufferWindow = COMBAT_CONFIG.inputBufferWindowMs || 130;
+
+    Object.keys(buffer).forEach((k) => {
+      if (buffer[k] > 0) {
+        buffer[k] = Math.max(0, buffer[k] - safeDelta);
+      }
+    });
+
+    if (this.checkRawJustPressed(keys.up)) buffer.jump = bufferWindow;
+    if (this.checkRawJustPressed(keys.punch)) buffer.punch = bufferWindow;
+    if (this.checkRawJustPressed(keys.kick)) buffer.kick = bufferWindow;
+    if (this.checkRawJustPressed(keys.special)) buffer.special = bufferWindow;
+
     const left = this.isActionHeld(keys.left);
     const right = this.isActionHeld(keys.right);
     const up = this.isActionHeld(keys.up);
     const down = this.isActionHeld(keys.down);
+    const blockHeld = this.isActionHeld(keys.block);
 
     return {
       left,
       right,
       up,
       down,
-      jumpPressed: this.isActionJustPressed(keys.up),
-      punchPressed: this.isActionJustPressed(keys.punch),
-      kickPressed: this.isActionJustPressed(keys.kick),
-      specialPressed: this.isActionJustPressed(keys.special),
-      blockHeld: this.isActionHeld(keys.block),
+      jumpPressed: buffer.jump > 0,
+      punchPressed: buffer.punch > 0,
+      kickPressed: buffer.kick > 0,
+      specialPressed: buffer.special > 0,
+      blockHeld,
+      consumeAction: (actionName) => {
+        if (buffer[actionName] !== undefined) {
+          buffer[actionName] = 0;
+        }
+      },
     };
   }
 

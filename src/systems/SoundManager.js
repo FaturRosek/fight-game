@@ -165,6 +165,70 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.1);
   }
+
+  playRoundStart() {
+    const ctx = this.ensureContext();
+    const volume = this.getSfxGain();
+    if (!ctx || volume <= 0) return;
+
+    const now = ctx.currentTime;
+    const notes = [330, 440, 659.25];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      gain.gain.setValueAtTime(0.2 * volume, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 0.17);
+    });
+  }
+
+  playRoundKO() {
+    const ctx = this.ensureContext();
+    const volume = this.getSfxGain();
+    if (!ctx || volume <= 0) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(42, now + 0.45);
+    gain.gain.setValueAtTime(0.38 * volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.48);
+  }
+
+  playMatchVictory(isDraw = false) {
+    const ctx = this.ensureContext();
+    const volume = this.getSfxGain();
+    if (!ctx || volume <= 0) return;
+
+    const now = ctx.currentTime;
+    const notes = isDraw
+      ? [293.66, 261.63, 220]
+      : [261.63, 329.63, 392.0, 523.25];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      const start = now + idx * 0.11;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.24 * volume, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.29);
+    });
+  }
 }
 
 export const soundManager = new SoundManager();
