@@ -104,6 +104,50 @@ export default class Fighter {
     this.syncVisuals();
   }
 
+  applyAuthoritativeNetState(netData, deltaMs = 16.67) {
+    if (!netData) return;
+    const lerpFactor = Math.min(1, (deltaMs / 1000) * 22);
+
+    if (Math.abs(this.x - netData.x) > 120) {
+      this.x = netData.x;
+    } else {
+      this.x = Phaser.Math.Linear(this.x, netData.x, lerpFactor);
+    }
+
+    if (Math.abs(this.y - netData.y) > 120) {
+      this.y = netData.y;
+    } else {
+      this.y = Phaser.Math.Linear(this.y, netData.y, lerpFactor);
+    }
+
+    this.isGrounded = Math.abs(this.y - this.groundY) < 4;
+    this.facing = netData.facing >= 0 ? 1 : -1;
+    this.health = netData.hp;
+    this.cooldowns.special = netData.spCd || 0;
+
+    if (netData.state && this.state !== netData.state) {
+      if (netData.state === FIGHTER_STATES.HIT) {
+        this.triggerTransitionPulse(1.09, 0.92, 110);
+        this.sprite.setTint(0xff453a);
+        this.scene.time.delayedCall(140, () => {
+          if (this.sprite && this.sprite.active) this.sprite.clearTint();
+        });
+      }
+      this.setState(netData.state, true);
+    }
+
+    this.updateBounds();
+    if (netData.hb) {
+      this.isHitboxActive = true;
+      this.hitbox.setTo(netData.hb.x, netData.hb.y, netData.hb.width, netData.hb.height);
+    } else {
+      this.isHitboxActive = false;
+      this.hitbox.setTo(0, 0, 0, 0);
+    }
+
+    this.syncVisuals();
+  }
+
   setOpponentPosition(opponentX) {
     this.opponentX = opponentX;
     if (!this.activeAttackSpec && this.state !== FIGHTER_STATES.HIT) {

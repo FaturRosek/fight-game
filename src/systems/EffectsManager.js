@@ -1,6 +1,30 @@
 export default class EffectsManager {
   constructor(scene) {
     this.scene = scene;
+    this.activeEffects = new Set();
+    this.maxActiveEffects = 28;
+  }
+
+  registerManagedEffect(gameObject) {
+    if (!gameObject) return;
+    if (this.activeEffects.size >= this.maxActiveEffects) {
+      const oldest = this.activeEffects.values().next().value;
+      if (oldest) {
+        this.activeEffects.delete(oldest);
+        if (oldest.active) oldest.destroy();
+      }
+    }
+    this.activeEffects.add(gameObject);
+    gameObject.once('destroy', () => {
+      this.activeEffects.delete(gameObject);
+    });
+  }
+
+  clearAll() {
+    this.activeEffects.forEach((obj) => {
+      if (obj && obj.active) obj.destroy();
+    });
+    this.activeEffects.clear();
   }
 
   spawnHitEffect(x, y, attackState, blocked, facingDir = 1) {

@@ -3,14 +3,14 @@ import { MATCH_CONFIG } from "../config/gameData.js";
 import Fighter from "../entities/Fighter.js";
 import AIController from "../entities/AIController.js";
 import InputManager from "../systems/InputManager.js";
+import TouchControls from "../systems/TouchControls.js";
 import CombatSystem from "../systems/CombatSystem.js";
 import EffectsManager from "../systems/EffectsManager.js";
 import RoundManager from "../systems/RoundManager.js";
+import { networkManager } from "../systems/NetworkManager.js";
 import { soundManager } from "../systems/SoundManager.js";
-import TouchControls from "../systems/TouchControls.js";
 import {
   GameSession,
-  saveSettings,
   createArcadeButton,
   shouldShowTouchControls,
   isPortraitMobile,
@@ -26,7 +26,11 @@ export default class BattleScene extends Phaser.Scene {
     const { arena, p1Character, p2Character, mode, settings } = GameSession;
     this.floorY = height * 0.84;
     this.showDebugBoxes = false;
+    this.isOnline = mode === "ONLINE";
     this.isPVE = mode === "PVE";
+    this.onlineSlot = this.isOnline ? networkManager.playerSlot : 1;
+    this.latestNetState = null;
+    this.onlineFightingPhase = false;
 
     this.displayedP1Health = 100;
     this.displayedP2Health = 100;
@@ -57,6 +61,7 @@ export default class BattleScene extends Phaser.Scene {
     this.inputManager = new InputManager(this);
     this.touchControls = new TouchControls(this);
     this.inputManager.attachTouchControls(this.touchControls);
+
     this.aiController = this.isPVE
       ? new AIController(
           this,
@@ -66,49 +71,56 @@ export default class BattleScene extends Phaser.Scene {
         )
       : null;
 
-    this.combatSystem = new CombatSystem(
-      this,
-      this.fighter1,
-      this.fighter2,
-      (hitEvent) => this.handleCombatHit(hitEvent),
-    );
+    this.combatSystem = !this.isOnline
+      ? new CombatSystem(this, this.fighter1, this.fighter2, (hitEvent) =>
+          this.handleCombatHit(hitEvent),
+        )
+      : null;
 
     this.debugGraphics = this.add.graphics().setDepth(40);
 
     this.createRoundAnnouncementOverlay(width, height);
     this.createMatchResultModal(width, height);
 
-    const configuredRoundsToWin =
-      settings.roundsToWin || MATCH_CONFIG.roundsToWin;
-    this.roundManager = new RoundManager(this, {
-      fighter1: this.fighter1,
-      fighter2: this.fighter2,
-      roundsToWin: configuredRoundsToWin,
-      roundDurationSeconds: MATCH_CONFIG.roundDurationSeconds,
-      onBannerUpdate: (title, sub, color, visible) => {
-        this.updateCenterBanner(title, sub, color, visible);
-      },
-      onRoundReset: (roundNumber) => {
-        this.displayedP1Health = this.fighter1.maxHealth;
-        this.displayedP2Health = this.fighter2.maxHealth;
-        this.trailP1Health = this.fighter1.maxHealth;
-        this.trailP2Health = this.fighter2.maxHealth;
-        this.inputManager.resetBuffers();
-        if (this.aiController) this.aiController.reset();
-        this.roundTitleBadge.setText(`ROUND ${roundNumber} (BEST OF 3)`);
-      },
-      onMatchEnd: (matchSummary) => {
-        this.showMatchResultModal(matchSummary);
-      },
-    });
+    if (!this.isOnline) {
+      const configuredRoundsToWin =
+        settings.roundsToWin || MATCH_CONFIG.roundsToWin;
+      this.roundManager = new RoundManager(this, {
+        fighter1: this.fighter1,
+        fighter2: this.fighter2,
+        roundsToWin: configuredRoundsToWin,
+        roundDurationSeconds: MATCH_CONFIG.roundDurationSeconds,
+        onBannerUpdate: (title, sub, color, visible) => {
+          this.updateCenterBanner(title, sub, color, visible);
+        },
+        onRoundReset: (roundNumber) => {
+          this.displayedP1Health = this.fighter1.maxHealth;
+          this.displayedP2Health = this.fighter2.maxHealth;
+          this.trailP1Health = this.fighter1.maxHealth;
+          this.trailP2Health = this.fighter2.maxHealth;
+          this.inputManager.resetBuffers();
+          if (this.aiController) this.aiController.reset();
+          this.roundTitleBadge.setText(`ROUND ${roundNumber} (BEST OF 3)`);
+        },
+        onMatchEnd: (matchSummary) => {
+          this.showMatchResultModal(matchSummary);
+        },
+      });
+    } else {
+      this.roundManager = null;
+      this.bindOnlineBattleEvents();
+    }
 
     this.events.once("shutdown", () => {
       if (this.roundManager) this.roundManager.destroy();
+      this.unbindOnlineBattleEvents();
     });
 
-    const modeHeadline = this.isPVE
-      ? `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 3 ROUNDS`
-      : "LOCAL 2-PLAYER PvP — BEST OF 3 ROUNDS (FIRST TO 2 WINS)";
+    const modeHeadline = this.isOnline
+      ? `ONLINE ROOM [${networkManager.roomCode}] — YOU ARE P${this.onlineSlot} (${this.onlineSlot === 1 ? "RAMA" : "JUN"})`
+      : this.isPVE
+        ? `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 3 ROUNDS`
+        : "LOCAL 2-PLAYER PvP — BEST OF 3 ROUNDS (FIRST TO 2 WINS)";
 
     this.combatFeedText = this.add
       .text(width / 2, 108, modeHeadline, {
@@ -140,9 +152,11 @@ export default class BattleScene extends Phaser.Scene {
       .text(
         width - 62,
         104,
-        this.isPVE
-          ? `AI CONTROLLED (${settings.aiDifficulty.toUpperCase()})\nBest of 3 Match Active`
-          : "P2: [UP]Jump [L/R]Move [DN]Crouch\nATK: [J]Punch [K]Kick [L]Spec [I]Block",
+        this.isOnline
+          ? `ONLINE SYNC ACTIVE\nRoom: ${networkManager.roomCode}`
+          : this.isPVE
+            ? `AI CONTROLLED (${settings.aiDifficulty.toUpperCase()})\nBest of 3 Match Active`
+            : "P2: [UP]Jump [L/R]Move [DN]Crouch\nATK: [J]Punch [K]Kick [L]Spec [I]Block",
         {
           fontFamily: "monospace",
           fontSize: "11px",
@@ -154,12 +168,6 @@ export default class BattleScene extends Phaser.Scene {
       )
       .setOrigin(1, 0)
       .setDepth(32);
-
-    const touchActive = shouldShowTouchControls();
-    this.p1ControlGuide.setVisible(!touchActive);
-    this.p2ControlGuide.setVisible(!touchActive);
-    this.p1StateBadge.setVisible(!touchActive);
-    this.p2StateBadge.setVisible(!touchActive);
 
     this.movementDebugText = this.add
       .text(width / 2, 136, "ROUND 1 READY", {
@@ -174,6 +182,12 @@ export default class BattleScene extends Phaser.Scene {
       .setDepth(32)
       .setVisible(this.showDebugBoxes);
 
+    const touchActive = shouldShowTouchControls();
+    this.p1ControlGuide.setVisible(!touchActive);
+    this.p2ControlGuide.setVisible(!touchActive);
+    this.p1StateBadge.setVisible(!touchActive);
+    this.p2StateBadge.setVisible(!touchActive);
+
     this.input.on("pointerdown", () => {
       soundManager.ensureContext();
       if (this.game && this.game.canvas) {
@@ -182,7 +196,150 @@ export default class BattleScene extends Phaser.Scene {
     });
 
     this.buildBottomUtilityBar(width, height);
-    this.roundManager.startMatch();
+
+    if (this.roundManager) {
+      this.roundManager.startMatch();
+    }
+  }
+
+  bindOnlineBattleEvents() {
+    const socket = networkManager.connect();
+
+    this.onOnlineState = (statePacket) => {
+      this.latestNetState = statePacket;
+      this.onlineFightingPhase = statePacket.phase === "FIGHTING";
+    };
+
+    this.onOnlineBanner = (b) => {
+      if (b.title === "FIGHT!") soundManager.playRoundStart();
+      else if (b.title.includes("K.O.") || b.title.includes("TIME OVER"))
+        soundManager.playRoundKO();
+      this.updateCenterBanner(b.title, b.sub, b.color, b.visible);
+    };
+
+    this.onOnlineRoundReset = (info) => {
+      this.fighter1.resetFighter();
+      this.fighter2.resetFighter();
+      this.displayedP1Health = this.fighter1.maxHealth;
+      this.displayedP2Health = this.fighter2.maxHealth;
+      this.trailP1Health = this.fighter1.maxHealth;
+      this.trailP2Health = this.fighter2.maxHealth;
+      this.inputManager.resetBuffers();
+      this.roundTitleBadge.setText(`ROUND ${info.round} (ONLINE BEST OF 3)`);
+    };
+
+    this.onOnlineHit = (ev) => {
+      const attacker = ev.attackerNum === 1 ? this.fighter1 : this.fighter2;
+      const defender = ev.defenderNum === 1 ? this.fighter1 : this.fighter2;
+
+      soundManager.playHit(ev.attackState, ev.blocked);
+      this.effectsManager.spawnHitEffect(
+        ev.impactX,
+        ev.impactY,
+        ev.attackState,
+        ev.blocked,
+        attacker.facing,
+      );
+      this.effectsManager.triggerImpactCameraFeedback(
+        ev.attackState,
+        ev.blocked,
+      );
+
+      const popupLabel = ev.blocked
+        ? `BLOCK -${ev.damage}`
+        : `-${ev.damage} HP`;
+      const popupColor = ev.blocked
+        ? "#64d2ff"
+        : ev.attackState === "SPECIAL"
+          ? "#ff3b30"
+          : "#ffd60a";
+      this.effectsManager.spawnFloatingPopup(
+        defender.x,
+        defender.y - 220,
+        popupLabel,
+        popupColor,
+      );
+
+      const actionLabel = ev.blocked ? "BLOCKED" : `${ev.attackState} HIT`;
+      this.combatFeedText.setText(
+        `${attacker.characterData.name} -> ${defender.characterData.name}: ${actionLabel} (-${ev.damage} HP)`,
+      );
+    };
+
+    this.onOnlineMatchEnd = (summary) => {
+      this.onlineFightingPhase = false;
+      soundManager.playMatchVictory(summary.outcome === "DRAW");
+      this.showMatchResultModal(summary);
+    };
+
+    this.onOnlineRematchStatus = (info) => {
+      if (this.btnRematchModal) {
+        this.btnRematchModal.setLabel(
+          `REMATCH (${info.votes.length}/${info.totalRequired})`,
+        );
+      }
+    };
+
+    this.onOnlineRematchStart = () => {
+      this.resultModal.setVisible(false);
+      if (this.btnRematchModal) {
+        this.btnRematchModal.setLabel("REMATCH");
+      }
+    };
+
+    this.onPlayerDisconnected = (info) => {
+      this.onlineFightingPhase = false;
+      this.updateCenterBanner(
+        "OPPONENT DISCONNECTED",
+        `WAITING ${info.graceSeconds}s FOR RECONNECT...`,
+        "#ff9f0a",
+        true,
+      );
+    };
+
+    this.onPlayerReconnected = () => {
+      this.updateCenterBanner("", "", "#ffffff", false);
+      this.combatFeedText.setText("OPPONENT RECONNECTED — MATCH RESUMED!");
+    };
+
+    this.onOpponentLeft = (info) => {
+      this.onlineFightingPhase = false;
+      this.updateCenterBanner("", "", "#ffffff", false);
+      const myOutcome = this.onlineSlot === 1 ? "P1" : "P2";
+      this.showMatchResultModal({
+        outcome: myOutcome,
+        p1Wins: this.latestNetState?.p1Wins || 0,
+        p2Wins: this.latestNetState?.p2Wins || 0,
+        forfeitMessage: info?.message || "OPPONENT LEFT THE ROOM.",
+      });
+    };
+
+    socket.on("online:state", this.onOnlineState);
+    socket.on("online:banner", this.onOnlineBanner);
+    socket.on("online:round_reset", this.onOnlineRoundReset);
+    socket.on("online:hit", this.onOnlineHit);
+    socket.on("online:match_end", this.onOnlineMatchEnd);
+    socket.on("online:rematch_status", this.onOnlineRematchStatus);
+    socket.on("online:rematch_start", this.onOnlineRematchStart);
+    socket.on("online:player_disconnected", this.onPlayerDisconnected);
+    socket.on("online:player_reconnected", this.onPlayerReconnected);
+    socket.on("online:opponent_left", this.onOpponentLeft);
+    networkManager.requestRoomSync();
+  }
+
+  unbindOnlineBattleEvents() {
+    const socket = networkManager.socket;
+    if (!socket) return;
+    socket.off("online:state", this.onOnlineState);
+    socket.off("online:banner", this.onOnlineBanner);
+    socket.off("online:round_reset", this.onOnlineRoundReset);
+    socket.off("online:hit", this.onOnlineHit);
+    socket.off("online:match_end", this.onOnlineMatchEnd);
+    socket.off("online:rematch_status", this.onOnlineRematchStatus);
+    socket.off("online:rematch_start", this.onOnlineRematchStart);
+    socket.off("online:player_disconnected", this.onPlayerDisconnected);
+    socket.off("online:player_reconnected", this.onPlayerReconnected);
+    socket.off("online:opponent_left", this.onOpponentLeft);
   }
 
   renderPerspectiveArena(arena, width, height) {
@@ -288,8 +445,20 @@ export default class BattleScene extends Phaser.Scene {
       this.barHeight + 6,
     );
 
+    const p1Tag =
+      this.isOnline && this.onlineSlot === 1
+        ? `${p1.name} (YOU)`
+        : `${p1.name} (P1)`;
+    const p2Tag = this.isOnline
+      ? this.onlineSlot === 2
+        ? `${p2.name} (YOU)`
+        : `${p2.name} (P2)`
+      : this.isPVE
+        ? `${p2.name} (AI)`
+        : `${p2.name} (P2)`;
+
     this.add
-      .text(62, topY + 34, `${p1.name} (P1)`, {
+      .text(62, topY + 34, p1Tag, {
         fontFamily: 'Impact, "Arial Black", sans-serif',
         fontSize: "26px",
         color: "#ffffff",
@@ -299,18 +468,13 @@ export default class BattleScene extends Phaser.Scene {
       .setDepth(33);
 
     this.p2NameText = this.add
-      .text(
-        width - 62,
-        topY + 34,
-        this.isPVE ? `${p2.name} (AI)` : `${p2.name} (P2)`,
-        {
-          fontFamily: 'Impact, "Arial Black", sans-serif',
-          fontSize: "26px",
-          color: "#ffffff",
-          stroke: "#000000",
-          strokeThickness: 5,
-        },
-      )
+      .text(width - 62, topY + 34, p2Tag, {
+        fontFamily: 'Impact, "Arial Black", sans-serif',
+        fontSize: "26px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 5,
+      })
       .setOrigin(1, 0)
       .setDepth(33);
 
@@ -393,7 +557,7 @@ export default class BattleScene extends Phaser.Scene {
     this.bannerMainText = this.add
       .text(0, -14, "ROUND 1", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "58px",
+        fontSize: "54px",
         color: "#ffd60a",
         stroke: "#000000",
         strokeThickness: 6,
@@ -403,7 +567,7 @@ export default class BattleScene extends Phaser.Scene {
     this.bannerSubText = this.add
       .text(0, 34, "GET READY", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "22px",
+        fontSize: "20px",
         color: "#ffffff",
         letterSpacing: 2,
       })
@@ -501,16 +665,21 @@ export default class BattleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const btnRematch = createArcadeButton(
+    this.btnRematchModal = createArcadeButton(
       this,
       -145,
       138,
       "REMATCH",
       () => {
+        if (this.isOnline) {
+          networkManager.requestRematch();
+          this.btnRematchModal.setLabel("WAITING OPPONENT...");
+          return;
+        }
         this.resultModal.setVisible(false);
         this.roundManager.startMatch();
       },
-      { width: 240, height: 46, accentColor: 0x30d158, fontSize: "20px" },
+      { width: 240, height: 46, accentColor: 0x30d158, fontSize: "18px" },
     );
 
     const btnMenu = createArcadeButton(
@@ -519,10 +688,11 @@ export default class BattleScene extends Phaser.Scene {
       138,
       "MAIN MENU",
       () => {
-        this.roundManager.destroy();
+        if (this.roundManager) this.roundManager.destroy();
+        if (this.isOnline) networkManager.leaveRoom();
         this.scene.start("MenuScene");
       },
-      { width: 240, height: 46, accentColor: 0xff3b30, fontSize: "20px" },
+      { width: 240, height: 46, accentColor: 0xff3b30, fontSize: "18px" },
     );
 
     this.resultModal.add([
@@ -533,7 +703,7 @@ export default class BattleScene extends Phaser.Scene {
       this.resultLoserLine,
       this.resultScoreLine,
       this.resultSubInfo,
-      btnRematch,
+      this.btnRematchModal,
       btnMenu,
     ]);
 
@@ -547,15 +717,17 @@ export default class BattleScene extends Phaser.Scene {
       : this.fighter2.characterData.name;
 
     if (summary.outcome === "P1") {
-      this.resultHeader.setText("VICTORY!");
-      this.resultHeader.setColor("#ffd60a");
+      const iWon = !this.isOnline || this.onlineSlot === 1;
+      this.resultHeader.setText(iWon ? "VICTORY!" : "DEFEAT");
+      this.resultHeader.setColor(iWon ? "#ffd60a" : "#ff3b30");
       this.resultWinnerLine.setText(`WINNER: ${p1Name} (PLAYER 1)`);
       this.resultWinnerLine.setColor("#30d158");
       this.resultLoserLine.setText(`LOSER: ${p2Name}`);
       this.resultLoserLine.setColor("#ff453a");
     } else if (summary.outcome === "P2") {
-      this.resultHeader.setText(this.isPVE ? "DEFEAT" : "PLAYER 2 VICTORY!");
-      this.resultHeader.setColor(this.isPVE ? "#ff3b30" : "#ffd60a");
+      const iWon = this.isOnline ? this.onlineSlot === 2 : !this.isPVE;
+      this.resultHeader.setText(iWon ? "VICTORY!" : "DEFEAT");
+      this.resultHeader.setColor(iWon ? "#ffd60a" : "#ff3b30");
       this.resultWinnerLine.setText(`WINNER: ${p2Name}`);
       this.resultWinnerLine.setColor("#30d158");
       this.resultLoserLine.setText(`LOSER: ${p1Name} (PLAYER 1)`);
@@ -573,10 +745,18 @@ export default class BattleScene extends Phaser.Scene {
       `FINAL ROUND SCORE:  ${p1Name} [${summary.p1Wins}]   —   [${summary.p2Wins}] ${p2Name}`,
     );
 
-    const modeInfo = this.isPVE
-      ? `Mode: Player vs AI (${GameSession.settings.aiDifficulty})  •  Arena: ${GameSession.arena.name}`
-      : `Mode: Local 2-Player PvP  •  Arena: ${GameSession.arena.name}`;
+    const modeInfo = summary.forfeitMessage
+      ? summary.forfeitMessage
+      : this.isOnline
+        ? `Online Room: ${networkManager.roomCode}  •  Arena: ${GameSession.arena.name}`
+        : this.isPVE
+          ? `Mode: Player vs AI (${GameSession.settings.aiDifficulty})  •  Arena: ${GameSession.arena.name}`
+          : `Mode: Local 2-Player PvP  •  Arena: ${GameSession.arena.name}`;
     this.resultSubInfo.setText(modeInfo);
+
+    if (this.btnRematchModal) {
+      this.btnRematchModal.setLabel("REMATCH");
+    }
 
     this.resultModal.setVisible(true);
     this.resultModal.setScale(0.88);
@@ -646,20 +826,29 @@ export default class BattleScene extends Phaser.Scene {
     this.p1HealthFill.setFillStyle(p1Ratio > 0.35 ? 0xffcc00 : 0xff3b30);
     this.p2HealthFill.setFillStyle(p2Ratio > 0.35 ? 0xffcc00 : 0xff3b30);
 
-    const secondsLeft = this.roundManager
-      ? this.roundManager.getDisplaySeconds()
-      : 99;
+    const secondsLeft = this.isOnline
+      ? this.latestNetState
+        ? this.latestNetState.timer
+        : 99
+      : this.roundManager
+        ? this.roundManager.getDisplaySeconds()
+        : 99;
     this.timerText.setText(String(secondsLeft).padStart(2, "0"));
     this.timerText.setColor(secondsLeft <= 15 ? "#ff3b30" : "#ffd60a");
 
-    if (this.roundManager) {
-      this.p1WinOrbs.forEach((orb, idx) => {
-        orb.setFillStyle(idx < this.roundManager.p1Wins ? 0xff3b30 : 0x262636);
-      });
-      this.p2WinOrbs.forEach((orb, idx) => {
-        orb.setFillStyle(idx < this.roundManager.p2Wins ? 0x0a84ff : 0x262636);
-      });
-    }
+    const p1WinsCount = this.isOnline
+      ? this.latestNetState?.p1Wins || 0
+      : this.roundManager?.p1Wins || 0;
+    const p2WinsCount = this.isOnline
+      ? this.latestNetState?.p2Wins || 0
+      : this.roundManager?.p2Wins || 0;
+
+    this.p1WinOrbs.forEach((orb, idx) => {
+      orb.setFillStyle(idx < p1WinsCount ? 0xff3b30 : 0x262636);
+    });
+    this.p2WinOrbs.forEach((orb, idx) => {
+      orb.setFillStyle(idx < p2WinsCount ? 0x0a84ff : 0x262636);
+    });
 
     const p1Sp =
       this.fighter1.cooldowns.special > 0
@@ -673,20 +862,9 @@ export default class BattleScene extends Phaser.Scene {
     this.p1StateBadge.setText(
       `HP: ${targetP1} | ${this.fighter1.state} | SP: ${p1Sp}`,
     );
-
-    const modeTag =
-      this.isPVE && this.aiController
-        ? ` | AI:${this.aiController.difficultyName.toUpperCase()}`
-        : " | 2P";
     this.p2StateBadge.setText(
-      `HP: ${targetP2} | ${this.fighter2.state} | SP: ${p2Sp}${modeTag}`,
+      `HP: ${targetP2} | ${this.fighter2.state} | SP: ${p2Sp}`,
     );
-
-    if (this.roundManager) {
-      this.movementDebugText.setText(
-        `ROUND ${this.roundManager.currentRound} (${this.roundManager.phase})  ||  SCORE: ${this.fighter1.characterData.name} ${this.roundManager.p1Wins} - ${this.roundManager.p2Wins} ${this.fighter2.characterData.name}`,
-      );
-    }
   }
 
   handleCombatHit(event) {
@@ -749,6 +927,7 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   toggleGameMode() {
+    if (this.isOnline) return;
     const { p2Character, settings } = GameSession;
     GameSession.mode = this.isPVE ? "PVP" : "PVE";
     this.isPVE = GameSession.mode === "PVE";
@@ -761,18 +940,12 @@ export default class BattleScene extends Phaser.Scene {
         settings.aiDifficulty,
       );
       this.p2NameText.setText(`${p2Character.name} (AI)`);
-      this.p2ControlGuide.setText(
-        `AI CONTROLLED (${settings.aiDifficulty.toUpperCase()})\nBest of 3 Match Active`,
-      );
       this.combatFeedText.setText(
         `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 3 ROUNDS`,
       );
     } else {
       this.aiController = null;
       this.p2NameText.setText(`${p2Character.name} (P2)`);
-      this.p2ControlGuide.setText(
-        "P2: [UP]Jump [L/R]Move [DN]Crouch\nATK: [J]Punch [K]Kick [L]Spec [I]Block",
-      );
       this.combatFeedText.setText(
         "LOCAL 2-PLAYER PvP — BEST OF 3 ROUNDS (FIRST TO 2 WINS)",
       );
@@ -785,49 +958,150 @@ export default class BattleScene extends Phaser.Scene {
   buildBottomUtilityBar(width, height) {
     const centerY = height - 24;
 
-    createArcadeButton(this, width / 2 - 270, centerY, 'FIGHTERS', () => {
-      this.roundManager.destroy();
-      this.scene.start('CharacterScene');
-    }, { width: 125, height: 30, accentColor: 0x8e8e93, fontSize: '12px' }).setDepth(45);
+    if (this.isOnline) {
+      const btnDebug = createArcadeButton(
+        this,
+        width / 2 - 110,
+        centerY,
+        "HITBOX: OFF",
+        () => {
+          this.showDebugBoxes = !this.showDebugBoxes;
+          this.movementDebugText.setVisible(this.showDebugBoxes);
+          btnDebug.setLabel(`HITBOX: ${this.showDebugBoxes ? "ON" : "OFF"}`);
+        },
+        { width: 145, height: 30, accentColor: 0x0a84ff, fontSize: "12px" },
+      ).setDepth(45);
 
-    const btnDebug = createArcadeButton(this, width / 2 - 135, centerY, 'HITBOX: OFF', () => {
-      this.showDebugBoxes = !this.showDebugBoxes;
-      this.movementDebugText.setVisible(this.showDebugBoxes);
-      btnDebug.setLabel(`HITBOX: ${this.showDebugBoxes ? 'ON' : 'OFF'}`);
-    }, { width: 125, height: 30, accentColor: 0x0a84ff, fontSize: '12px' }).setDepth(45);
+      createArcadeButton(
+        this,
+        width / 2 + 110,
+        centerY,
+        "LEAVE ONLINE",
+        () => {
+          networkManager.leaveRoom();
+          this.scene.start("MenuScene");
+        },
+        { width: 165, height: 30, accentColor: 0xff3b30, fontSize: "12px" },
+      ).setDepth(45);
+      return;
+    }
+
+    createArcadeButton(
+      this,
+      width / 2 - 270,
+      centerY,
+      "FIGHTERS",
+      () => {
+        if (this.roundManager) this.roundManager.destroy();
+        this.scene.start("CharacterScene");
+      },
+      { width: 125, height: 30, accentColor: 0x8e8e93, fontSize: "12px" },
+    ).setDepth(45);
+
+    const btnDebug = createArcadeButton(
+      this,
+      width / 2 - 135,
+      centerY,
+      "HITBOX: OFF",
+      () => {
+        this.showDebugBoxes = !this.showDebugBoxes;
+        this.movementDebugText.setVisible(this.showDebugBoxes);
+        btnDebug.setLabel(`HITBOX: ${this.showDebugBoxes ? "ON" : "OFF"}`);
+      },
+      { width: 125, height: 30, accentColor: 0x0a84ff, fontSize: "12px" },
+    ).setDepth(45);
 
     const btnMode = createArcadeButton(
       this,
       width / 2,
       centerY,
-      this.isPVE ? 'MODE: PvAI' : 'MODE: 2P PvP',
+      this.isPVE ? "MODE: PvAI" : "MODE: 2P PvP",
       () => {
         this.toggleGameMode();
-        btnMode.setLabel(this.isPVE ? 'MODE: PvAI' : 'MODE: 2P PvP');
+        btnMode.setLabel(this.isPVE ? "MODE: PvAI" : "MODE: 2P PvP");
       },
-      { width: 130, height: 30, accentColor: 0x30d158, fontSize: '12px' }
+      { width: 130, height: 30, accentColor: 0x30d158, fontSize: "12px" },
     ).setDepth(45);
 
-    createArcadeButton(this, width / 2 + 135, centerY, 'RESTART', () => {
-      this.resultModal.setVisible(false);
-      this.roundManager.startMatch();
-      this.combatFeedText.setText('MATCH RESTARTED — ROUND 1');
-    }, { width: 125, height: 30, accentColor: 0xff9f0a, fontSize: '12px' }).setDepth(45);
+    createArcadeButton(
+      this,
+      width / 2 + 135,
+      centerY,
+      "RESTART",
+      () => {
+        this.resultModal.setVisible(false);
+        this.roundManager.startMatch();
+        this.combatFeedText.setText("MATCH RESTARTED — ROUND 1");
+      },
+      { width: 125, height: 30, accentColor: 0xff9f0a, fontSize: "12px" },
+    ).setDepth(45);
 
-    createArcadeButton(this, width / 2 + 270, centerY, 'MENU', () => {
-      this.roundManager.destroy();
-      this.scene.start('MenuScene');
-    }, { width: 125, height: 30, accentColor: 0xff3b30, fontSize: '12px' }).setDepth(45);
+    createArcadeButton(
+      this,
+      width / 2 + 270,
+      centerY,
+      "MENU",
+      () => {
+        if (this.roundManager) this.roundManager.destroy();
+        this.scene.start("MenuScene");
+      },
+      { width: 125, height: 30, accentColor: 0xff3b30, fontSize: "12px" },
+    ).setDepth(45);
+  }
+
+  getCombinedLocalOnlineInput(delta) {
+    const p1 = this.inputManager.getPlayerState(1, delta);
+    const p2 = this.inputManager.getPlayerState(2, delta);
+    return {
+      left: p1.left || p2.left,
+      right: p1.right || p2.right,
+      up: p1.up || p2.up,
+      down: p1.down || p2.down,
+      blockHeld: p1.blockHeld || p2.blockHeld,
+      jumpPressed: p1.jumpPressed || p2.jumpPressed,
+      punchPressed: p1.punchPressed || p2.punchPressed,
+      kickPressed: p1.kickPressed || p2.kickPressed,
+      specialPressed: p1.specialPressed || p2.specialPressed,
+      consumeAction: (act) => {
+        p1.consumeAction(act);
+        p2.consumeAction(act);
+      },
+    };
   }
 
   update(time, delta) {
-    if (!this.fighter1 || !this.fighter2 || !this.inputManager || !this.roundManager) return;
+    if (!this.fighter1 || !this.fighter2 || !this.inputManager) return;
 
     if (isPortraitMobile()) {
       if (this.touchControls) this.touchControls.releaseAll();
       return;
     }
 
+    if (this.isOnline) {
+      const canAct = this.onlineFightingPhase;
+      const myFighter = this.onlineSlot === 1 ? this.fighter1 : this.fighter2;
+      if (this.touchControls) {
+        this.touchControls.setEnabled(canAct);
+        this.touchControls.updateSpecialStatus(myFighter.cooldowns.special);
+      }
+
+      if (canAct) {
+        const localInput = this.getCombinedLocalOnlineInput(delta);
+        networkManager.sendInput(localInput);
+      }
+
+      if (this.latestNetState) {
+        this.fighter1.applyAuthoritativeNetState(this.latestNetState.f1, delta);
+        this.fighter2.applyAuthoritativeNetState(this.latestNetState.f2, delta);
+      }
+
+      this.updateHUD(delta);
+      this.drawDebugBoxes();
+      this.inputManager.clearJustPressed();
+      return;
+    }
+
+    if (!this.roundManager) return;
     this.roundManager.update(delta);
 
     const canControlFighters = this.roundManager.isFighting();
@@ -841,9 +1115,9 @@ export default class BattleScene extends Phaser.Scene {
       : null;
 
     const p2Input = canControlFighters
-      ? (this.isPVE && this.aiController
+      ? this.isPVE && this.aiController
         ? this.aiController.getInputState(delta)
-        : this.inputManager.getPlayerState(2, delta))
+        : this.inputManager.getPlayerState(2, delta)
       : null;
 
     this.fighter1.update(delta, p1Input);
