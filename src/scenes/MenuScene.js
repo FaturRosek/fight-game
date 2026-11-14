@@ -170,7 +170,7 @@ export default class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const header = this.add
-      .text(width / 2, 112, "SELECT COMBAT MODE", {
+      .text(width / 2, 108, "SELECT COMBAT MODE", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
         fontSize: "48px",
         color: "#ffffff",
@@ -182,8 +182,8 @@ export default class MenuScene extends Phaser.Scene {
     const sub = this.add
       .text(
         width / 2,
-        160,
-        "Touch Controls fully supported in Player vs AI  •  Local 2P uses Keyboard",
+        154,
+        "Play Solo vs AI, Local 2-Player on 1 Keyboard, or Online Cross-Device Battle",
         {
           fontSize: "15px",
           color: "#b0b0ba",
@@ -191,12 +191,16 @@ export default class MenuScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
 
-    const pveCard = this.createModeCard(
-      width / 2 - 230,
-      height / 2 - 10,
+    const cardWidth = 355;
+    const spacing = 380;
+
+    const pveCard = this.createCompactModeCard(
+      width / 2 - spacing,
+      height / 2 - 12,
+      cardWidth,
       "PLAYER VS AI",
-      "MOBILE TOUCH & DESKTOP",
-      "Fight against computer-controlled JUN with adaptive tactical AI and full virtual touch controller.",
+      "SINGLE PLAYER ARCADE",
+      "Fight computer-controlled JUN with Easy, Normal, or Hard AI.",
       0xff3b30,
       () => {
         GameSession.mode = "PVE";
@@ -205,12 +209,13 @@ export default class MenuScene extends Phaser.Scene {
       },
     );
 
-    const pvpCard = this.createModeCard(
-      width / 2 + 230,
-      height / 2 - 10,
-      "PLAYER VS PLAYER",
-      "LOCAL 2-PLAYER KEYBOARD",
-      "Head-to-head local multiplayer on one keyboard (P1 can also use Touch Controls + P2 on Keyboard).",
+    const pvpCard = this.createCompactModeCard(
+      width / 2,
+      height / 2 - 12,
+      cardWidth,
+      "LOCAL 2P VERSUS",
+      "SAME DEVICE KEYBOARD",
+      "RAMA vs JUN on one keyboard (WASD+FGHR vs Arrows+JKLI).",
       0x0a84ff,
       () => {
         GameSession.mode = "PVP";
@@ -219,39 +224,46 @@ export default class MenuScene extends Phaser.Scene {
       },
     );
 
-    const diffs = ["Easy", "Normal", "Hard"];
-    const diffLabel = this.add
-      .text(width / 2 - 230, height / 2 + 150, "AI DIFFICULTY:", {
-        fontSize: "14px",
-        fontStyle: "bold",
-        color: "#ffd60a",
-      })
-      .setOrigin(0.5);
+    const onlineCard = this.createCompactModeCard(
+      width / 2 + spacing,
+      height / 2 - 12,
+      cardWidth,
+      "ONLINE BATTLE",
+      "PHONE VS LAPTOP / 2 DEVICES",
+      "Create or Join a 6-digit Room Code for real-time internet multiplayer.",
+      0x30d158,
+      () => {
+        GameSession.mode = "ONLINE";
+        this.modeBadge.setText("CURRENT MODE: ONLINE");
+        this.scene.start("OnlineLobbyScene");
+      },
+    );
 
+    const diffs = ["Easy", "Normal", "Hard"];
     const btnCycleDiff = createArcadeButton(
       this,
-      width / 2 - 230,
-      height / 2 + 186,
-      `DIFFICULTY: ${GameSession.settings.aiDifficulty.toUpperCase()}`,
+      width / 2 - 175,
+      height - 96,
+      `AI DIFFICULTY: ${GameSession.settings.aiDifficulty.toUpperCase()}`,
       () => {
         const idx =
           (diffs.indexOf(GameSession.settings.aiDifficulty) + 1) % diffs.length;
         const nextDiff = diffs[idx];
         saveSettings({ aiDifficulty: nextDiff });
-        btnCycleDiff.setLabel(`DIFFICULTY: ${nextDiff.toUpperCase()}`);
+        btnCycleDiff.setLabel(`AI DIFFICULTY: ${nextDiff.toUpperCase()}`);
       },
-      { width: 250, height: 40, accentColor: 0xff9f0a, fontSize: "15px" },
+      { width: 280, height: 42, accentColor: 0xff9f0a, fontSize: "15px" },
     );
 
     const btnBack = createArcadeButton(
-      width && this,
-      width / 2 + 230,
-      height / 2 + 186,
+      this,
+      width / 2 + 175,
+      height - 96,
       "BACK TO MAIN MENU",
       () => {
         this.showMainPanel();
       },
-      { width: 250, height: 40, accentColor: 0x8e8e93, fontSize: "15px" },
+      { width: 280, height: 42, accentColor: 0x8e8e93, fontSize: "15px" },
     );
 
     this.panelContainer.add([
@@ -259,10 +271,69 @@ export default class MenuScene extends Phaser.Scene {
       sub,
       pveCard,
       pvpCard,
-      diffLabel,
+      onlineCard,
       btnCycleDiff,
       btnBack,
     ]);
+  }
+
+  createCompactModeCard(
+    x,
+    y,
+    cardW,
+    title,
+    subtitle,
+    desc,
+    accentHex,
+    onSelect,
+  ) {
+    const cardH = 250;
+    const container = this.add.container(x, y);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x151520, 0.96);
+    bg.lineStyle(3, accentHex, 1);
+    bg.fillRect(-cardW / 2, -cardH / 2, cardW, cardH);
+    bg.strokeRect(-cardW / 2, -cardH / 2, cardW, cardH);
+
+    bg.fillStyle(accentHex, 1);
+    bg.fillRect(-cardW / 2, -cardH / 2, cardW, 8);
+
+    const tTitle = this.add
+      .text(0, -72, title, {
+        fontFamily: 'Impact, "Arial Black", sans-serif',
+        fontSize: "30px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    const tSub = this.add
+      .text(0, -34, subtitle, {
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#ffd60a",
+        letterSpacing: 1.5,
+      })
+      .setOrigin(0.5);
+
+    const tDesc = this.add
+      .text(0, 18, desc, {
+        fontSize: "14px",
+        color: "#c8c8d0",
+        align: "center",
+        wordWrap: { width: cardW - 36 },
+      })
+      .setOrigin(0.5);
+
+    const selectBtn = createArcadeButton(this, 0, 86, "SELECT MODE", onSelect, {
+      width: 210,
+      height: 40,
+      accentColor: accentHex,
+      fontSize: "16px",
+    });
+
+    container.add([bg, tTitle, tSub, tDesc, selectBtn]);
+    return container;
   }
 
   createModeCard(x, y, title, subtitle, desc, accentHex, onSelect) {

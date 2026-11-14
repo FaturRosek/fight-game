@@ -3,6 +3,7 @@ import BootScene from "../scenes/BootScene.js";
 import MenuScene from "../scenes/MenuScene.js";
 import CharacterScene from "../scenes/CharacterScene.js";
 import ArenaScene from "../scenes/ArenaScene.js";
+import OnlineLobbyScene from "../scenes/OnlineLobbyScene.js";
 import BattleScene from "../scenes/BattleScene.js";
 
 export const GAME_WIDTH = 1280;
@@ -32,5 +33,12 @@ export const gameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, MenuScene, CharacterScene, ArenaScene, BattleScene],
+  scene: [
+    BootScene,
+    MenuScene,
+    CharacterScene,
+    ArenaScene,
+    OnlineLobbyScene,
+    BattleScene,
+  ],
 };
