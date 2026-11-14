@@ -378,45 +378,48 @@ export default class BattleScene extends Phaser.Scene {
 
   renderTekkenHUD(p1, p2, width) {
     const hud = this.add.graphics().setDepth(30);
-    this.barWidth = 454;
-    this.barHeight = 22;
-    const topY = 34;
+    this.barWidth = 445;
+    this.barHeight = 24;
+    const topY = 32;
 
-    hud.fillStyle(0x1a0808, 0.94);
-    hud.fillRect(60, topY, this.barWidth + 6, this.barHeight + 6);
+    hud.fillGradientStyle(0x06060b, 0x06060b, 0x000000, 0x000000, 0.72);
+    hud.fillRect(0, 0, width, 96);
+
+    hud.fillStyle(0x1f080a, 0.96);
+    hud.fillRect(68, topY, this.barWidth + 8, this.barHeight + 8);
     hud.fillRect(
-      width - 66 - this.barWidth,
+      width - 76 - this.barWidth,
       topY,
-      this.barWidth + 6,
-      this.barHeight + 6,
+      this.barWidth + 8,
+      this.barHeight + 8,
     );
 
     this.p1DamageTrail = this.add
       .rectangle(
-        63 + this.barWidth,
-        topY + 3 + this.barHeight / 2,
+        72 + this.barWidth,
+        topY + 4 + this.barHeight / 2,
         this.barWidth,
         this.barHeight,
-        0xb81d13,
+        0xc91e14,
       )
       .setOrigin(1, 0.5)
       .setDepth(31);
 
     this.p2DamageTrail = this.add
       .rectangle(
-        width - 63 - this.barWidth,
-        topY + 3 + this.barHeight / 2,
+        width - 72 - this.barWidth,
+        topY + 4 + this.barHeight / 2,
         this.barWidth,
         this.barHeight,
-        0xb81d13,
+        0xc91e14,
       )
       .setOrigin(0, 0.5)
       .setDepth(31);
 
     this.p1HealthFill = this.add
       .rectangle(
-        63 + this.barWidth,
-        topY + 3 + this.barHeight / 2,
+        72 + this.barWidth,
+        topY + 4 + this.barHeight / 2,
         this.barWidth,
         this.barHeight,
         0xffcc00,
@@ -426,8 +429,8 @@ export default class BattleScene extends Phaser.Scene {
 
     this.p2HealthFill = this.add
       .rectangle(
-        width - 63 - this.barWidth,
-        topY + 3 + this.barHeight / 2,
+        width - 72 - this.barWidth,
+        topY + 4 + this.barHeight / 2,
         this.barWidth,
         this.barHeight,
         0xffcc00,
@@ -437,41 +440,71 @@ export default class BattleScene extends Phaser.Scene {
 
     const frameOverlay = this.add.graphics().setDepth(33);
     frameOverlay.lineStyle(3, 0xffd60a, 1);
-    frameOverlay.strokeRect(60, topY, this.barWidth + 6, this.barHeight + 6);
+    frameOverlay.strokeRect(68, topY, this.barWidth + 8, this.barHeight + 8);
     frameOverlay.strokeRect(
-      width - 66 - this.barWidth,
+      width - 76 - this.barWidth,
       topY,
-      this.barWidth + 6,
-      this.barHeight + 6,
+      this.barWidth + 8,
+      this.barHeight + 8,
     );
+
+    frameOverlay.fillStyle(p1.color, 1);
+    frameOverlay.fillRect(24, topY, 38, 38);
+    frameOverlay.lineStyle(2, 0xffd60a, 1);
+    frameOverlay.strokeRect(24, topY, 38, 38);
+
+    frameOverlay.fillStyle(p2.color, 1);
+    frameOverlay.fillRect(width - 62, topY, 38, 38);
+    frameOverlay.lineStyle(2, 0xffd60a, 1);
+    frameOverlay.strokeRect(width - 62, topY, 38, 38);
+
+    this.add
+      .text(43, topY + 19, "P1", {
+        fontFamily: '"Teko", Impact, sans-serif',
+        fontSize: "26px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+
+    this.add
+      .text(width - 43, topY + 19, this.isPVE ? "AI" : "P2", {
+        fontFamily: '"Teko", Impact, sans-serif',
+        fontSize: "26px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
 
     const p1Tag =
       this.isOnline && this.onlineSlot === 1
-        ? `${p1.name} (YOU)`
-        : `${p1.name} (P1)`;
+        ? `${p1.fullTitle} (YOU)`
+        : p1.fullTitle;
     const p2Tag = this.isOnline
       ? this.onlineSlot === 2
-        ? `${p2.name} (YOU)`
-        : `${p2.name} (P2)`
+        ? `${p2.fullTitle} (YOU)`
+        : p2.fullTitle
       : this.isPVE
-        ? `${p2.name} (AI)`
-        : `${p2.name} (P2)`;
+        ? `${p2.fullTitle} [AI]`
+        : p2.fullTitle;
 
     this.add
-      .text(62, topY + 34, p1Tag, {
-        fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "26px",
+      .text(70, topY + 36, p1Tag, {
+        fontFamily: '"Teko", Impact, "Arial Black", sans-serif',
+        fontSize: "30px",
         color: "#ffffff",
+        letterSpacing: 1,
         stroke: "#000000",
         strokeThickness: 5,
       })
       .setDepth(33);
 
     this.p2NameText = this.add
-      .text(width - 62, topY + 34, p2Tag, {
-        fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "26px",
+      .text(width - 70, topY + 36, p2Tag, {
+        fontFamily: '"Teko", Impact, "Arial Black", sans-serif',
+        fontSize: "30px",
         color: "#ffffff",
+        letterSpacing: 1,
         stroke: "#000000",
         strokeThickness: 5,
       })
@@ -480,67 +513,75 @@ export default class BattleScene extends Phaser.Scene {
 
     this.p1WinOrbs = [
       this.add
-        .circle(width / 2 - 88, topY + 46, 9, 0x262636)
+        .circle(width / 2 - 90, topY + 48, 9, 0x262636)
         .setStrokeStyle(2, 0xffd60a)
         .setDepth(33),
       this.add
-        .circle(width / 2 - 64, topY + 46, 9, 0x262636)
+        .circle(width / 2 - 66, topY + 48, 9, 0x262636)
         .setStrokeStyle(2, 0xffd60a)
         .setDepth(33),
     ];
 
     this.p2WinOrbs = [
       this.add
-        .circle(width / 2 + 64, topY + 46, 9, 0x262636)
+        .circle(width / 2 + 66, topY + 48, 9, 0x262636)
         .setStrokeStyle(2, 0xffd60a)
         .setDepth(33),
       this.add
-        .circle(width / 2 + 88, topY + 46, 9, 0x262636)
+        .circle(width / 2 + 90, topY + 48, 9, 0x262636)
         .setStrokeStyle(2, 0xffd60a)
         .setDepth(33),
     ];
 
     this.p1StateBadge = this.add
-      .text(215, topY + 40, "HP: 100 | IDLE | SP: READY", {
-        fontSize: "12px",
+      .text(285, topY + 43, "HP: 100 | IDLE | SP: READY", {
+        fontFamily: '"Rajdhani", sans-serif',
+        fontSize: "13px",
         fontStyle: "bold",
         color: "#30d158",
         backgroundColor: "#000000aa",
-        padding: { x: 8, y: 3 },
+        padding: { x: 8, y: 2 },
       })
       .setDepth(33);
 
     this.p2StateBadge = this.add
-      .text(width - 215, topY + 40, "HP: 100 | IDLE | SP: READY", {
-        fontSize: "12px",
+      .text(width - 285, topY + 43, "HP: 100 | IDLE | SP: READY", {
+        fontFamily: '"Rajdhani", sans-serif',
+        fontSize: "13px",
         fontStyle: "bold",
         color: "#30d158",
         backgroundColor: "#000000aa",
-        padding: { x: 8, y: 3 },
+        padding: { x: 8, y: 2 },
       })
       .setOrigin(1, 0)
       .setDepth(33);
 
     this.roundTitleBadge = this.add
-      .text(width / 2, 14, "ROUND 1 (BEST OF 3)", {
-        fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "16px",
+      .text(width / 2, 12, "ROUND 1 (BEST OF 3)", {
+        fontFamily: '"Rajdhani", sans-serif',
+        fontSize: "15px",
+        fontStyle: "bold",
         color: "#ffd60a",
-        letterSpacing: 1.5,
+        letterSpacing: 2,
       })
       .setOrigin(0.5)
       .setDepth(33);
 
+    frameOverlay.fillStyle(0x160a0c, 0.95);
+    frameOverlay.lineStyle(3, 0xffd60a, 1);
+    frameOverlay.fillCircle(width / 2, topY + 24, 34);
+    frameOverlay.strokeCircle(width / 2, topY + 24, 34);
+
     this.timerText = this.add
-      .text(width / 2, topY + 20, "99", {
-        fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "52px",
+      .text(width / 2, topY + 24, "99", {
+        fontFamily: '"Teko", Impact, "Arial Black", sans-serif',
+        fontSize: "56px",
         color: "#ffd60a",
-        stroke: "#3a0800",
-        strokeThickness: 6,
+        stroke: "#000000",
+        strokeThickness: 5,
       })
       .setOrigin(0.5)
-      .setDepth(33);
+      .setDepth(34);
   }
 
   createRoundAnnouncementOverlay(width, height) {

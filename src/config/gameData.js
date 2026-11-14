@@ -1,3 +1,10 @@
+export const GAME_BRAND = {
+  title: 'IRON RIVALS',
+  subtitle: 'SHADOW STRIKER VS CAPTAIN XTREME',
+  edition: '2.5D TOURNAMENT EDITION',
+  version: 'v2.0'
+};
+
 export const CHARACTER_ANIMATIONS = {
   idle: { row: 0, frames: 4, frameRate: 7, repeat: -1 },
   walk: { row: 1, frames: 4, frameRate: 9, repeat: -1 },
