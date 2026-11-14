@@ -14,9 +14,16 @@ export const gameConfig = {
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   backgroundColor: "#09090d",
+  input: {
+    activePointers: 6,
+    touch: {
+      capture: true,
+    },
+  },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    expandParent: true,
   },
   physics: {
     default: "arcade",
