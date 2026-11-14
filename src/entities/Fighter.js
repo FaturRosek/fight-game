@@ -21,6 +21,7 @@ export default class Fighter {
     this.velocityX = 0;
     this.velocityY = 0;
     this.knockbackVelocity = 0;
+    this.knockdownAngle = 0;
 
     this.facing = this.defaultFacing;
     this.opponentX = null;
@@ -60,6 +61,12 @@ export default class Fighter {
 
     this.sprite.on("animationcomplete", () => {
       if (
+        this.state === FIGHTER_STATES.DEFEAT ||
+        this.state === FIGHTER_STATES.VICTORY
+      ) {
+        return;
+      }
+      if (
         !this.activeAttackSpec &&
         this.state !== FIGHTER_STATES.HIT &&
         this.state !== FIGHTER_STATES.BLOCK &&
@@ -86,6 +93,8 @@ export default class Fighter {
     this.velocityY = 0;
     this.knockbackVelocity = 0;
     this.facing = this.defaultFacing;
+    this.opponentX = this.defaultFacing === 1 ? this.startX + 500 : this.startX - 500;
+    this.knockdownAngle = 0;
     this.health = this.maxHealth;
     this.isGrounded = true;
     this.isRunning = false;
@@ -97,7 +106,10 @@ export default class Fighter {
     this.cooldowns.punch = 0;
     this.cooldowns.kick = 0;
     this.cooldowns.special = 0;
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.killTweensOf(this.sprite);
     this.sprite.clearTint();
+    this.sprite.setOrigin(0.5, 1);
     this.sprite.setAngle(0);
     this.sprite.setScale(this.baseScale);
     this.setState(FIGHTER_STATES.IDLE, true);
@@ -127,20 +139,29 @@ export default class Fighter {
     this.cooldowns.special = netData.spCd || 0;
 
     if (netData.state && this.state !== netData.state) {
-      if (netData.state === FIGHTER_STATES.HIT) {
-        this.triggerTransitionPulse(1.09, 0.92, 110);
-        this.sprite.setTint(0xff453a);
-        this.scene.time.delayedCall(140, () => {
-          if (this.sprite && this.sprite.active) this.sprite.clearTint();
-        });
+      if (netData.state === FIGHTER_STATES.DEFEAT || netData.state === FIGHTER_STATES.VICTORY) {
+        this.enterRoundEndPose(netData.state);
+      } else {
+        if (netData.state === FIGHTER_STATES.HIT) {
+          this.triggerTransitionPulse(1.09, 0.92, 110);
+          this.sprite.setTint(0xff453a);
+          this.scene.time.delayedCall(140, () => {
+            if (this.sprite && this.sprite.active) this.sprite.clearTint();
+          });
+        }
+        this.setState(netData.state, true);
       }
-      this.setState(netData.state, true);
     }
 
     this.updateBounds();
     if (netData.hb) {
       this.isHitboxActive = true;
-      this.hitbox.setTo(netData.hb.x, netData.hb.y, netData.hb.width, netData.hb.height);
+      this.hitbox.setTo(
+        netData.hb.x,
+        netData.hb.y,
+        netData.hb.width,
+        netData.hb.height,
+      );
     } else {
       this.isHitboxActive = false;
       this.hitbox.setTo(0, 0, 0, 0);
@@ -157,6 +178,12 @@ export default class Fighter {
   }
 
   faceTowardsOpponent() {
+    if (
+      this.state === FIGHTER_STATES.DEFEAT ||
+      this.state === FIGHTER_STATES.VICTORY
+    ) {
+      return;
+    }
     if (this.opponentX === null || this.opponentX === undefined) return;
     const diff = this.opponentX - this.x;
     if (Math.abs(diff) > 2) {
@@ -196,12 +223,33 @@ export default class Fighter {
     this.sprite.clearTint();
 
     if (endState === FIGHTER_STATES.DEFEAT) {
+      if (this.state === FIGHTER_STATES.DEFEAT) return;
       this.isGrounded = false;
-      this.velocityY = -420;
-      this.knockbackVelocity = -this.facing * 360;
+      this.velocityY = -440;
+      this.knockbackVelocity = -this.facing * 320;
+      this.knockdownAngle = 0;
+
+      const targetFallAngle = this.facing === 1 ? -88 : 88;
+      this.scene.tweens.add({
+        targets: this,
+        knockdownAngle: targetFallAngle,
+        duration: 460,
+        ease: 'Cubic.easeOut'
+      });
+
       if (this.scene.effectsManager) {
         this.scene.effectsManager.spawnKnockbackBurst(this.x, this.groundY, -this.facing, true);
       }
+    } else {
+      if (this.opponentX !== null && this.opponentX !== undefined) {
+        const diff = this.opponentX - this.x;
+        if (Math.abs(diff) > 2) {
+          this.facing = diff >= 0 ? 1 : -1;
+        }
+      }
+      this.knockdownAngle = 0;
+      this.sprite.setOrigin(0.5, 1);
+      this.sprite.setAngle(0);
     }
 
     this.setState(endState, true);
@@ -245,7 +293,10 @@ export default class Fighter {
       this.isHitboxActive = false;
       this.hasHitCurrentAttack = false;
       this.faceTowardsOpponent();
-      this.setState(this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP, true);
+      this.setState(
+        this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP,
+        true,
+      );
     }
 
     if (this.activeAttackSpec) {
@@ -430,14 +481,18 @@ export default class Fighter {
     const activeEnd = spec.startupMs + spec.activeMs;
     const totalDuration = activeEnd + spec.recoveryMs;
 
-    const inTimeWindow = this.attackElapsedMs >= activeStart && this.attackElapsedMs <= activeEnd;
+    const inTimeWindow =
+      this.attackElapsedMs >= activeStart && this.attackElapsedMs <= activeEnd;
     this.isHitboxActive = !this.hasHitCurrentAttack && inTimeWindow;
 
-    if (spec.state === 'SPECIAL' && inTimeWindow && this.scene.effectsManager) {
+    if (spec.state === "SPECIAL" && inTimeWindow && this.scene.effectsManager) {
       this.afterimageTimerMs += deltaMs;
       if (this.afterimageTimerMs >= 55) {
         this.afterimageTimerMs = 0;
-        this.scene.effectsManager.spawnAfterimage(this.sprite, this.characterData.color);
+        this.scene.effectsManager.spawnAfterimage(
+          this.sprite,
+          this.characterData.color,
+        );
       }
     }
 
@@ -447,7 +502,10 @@ export default class Fighter {
       this.hasHitCurrentAttack = false;
       this.attackElapsedMs = 0;
       this.faceTowardsOpponent();
-      this.setState(this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP, true);
+      this.setState(
+        this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP,
+        true,
+      );
     }
   }
 
@@ -493,7 +551,12 @@ export default class Fighter {
         if (this.scene.effectsManager) {
           this.scene.effectsManager.spawnDustPuff(this.x, this.groundY, 3);
         }
-        if (!this.activeAttackSpec && this.state !== FIGHTER_STATES.HIT) {
+        if (
+          !this.activeAttackSpec &&
+          this.state !== FIGHTER_STATES.HIT &&
+          this.state !== FIGHTER_STATES.DEFEAT &&
+          this.state !== FIGHTER_STATES.VICTORY
+        ) {
           this.setState(FIGHTER_STATES.IDLE, true);
         }
       }
@@ -553,6 +616,11 @@ export default class Fighter {
       return { blocked: true, damage: finalDamage };
     }
 
+    if (this.health <= 0) {
+      this.enterRoundEndPose(FIGHTER_STATES.DEFEAT);
+      return { blocked: false, damage: finalDamage };
+    }
+
     this.stunTimerMs = attackSpec.hitStunMs;
     this.setState(FIGHTER_STATES.HIT, true);
     this.triggerTransitionPulse(1.09, 0.92, 120);
@@ -607,25 +675,27 @@ export default class Fighter {
 
   playStateAnimation(stateName, forceRestart = false) {
     const animMap = {
-      [FIGHTER_STATES.IDLE]: 'idle',
-      [FIGHTER_STATES.WALK]: 'walk',
-      [FIGHTER_STATES.RUN]: 'run',
-      [FIGHTER_STATES.JUMP]: 'jump',
-      [FIGHTER_STATES.CROUCH]: 'crouch',
-      [FIGHTER_STATES.PUNCH]: 'punch',
-      [FIGHTER_STATES.KICK]: 'kick',
-      [FIGHTER_STATES.BLOCK]: 'block',
-      [FIGHTER_STATES.HIT]: 'hit',
-      [FIGHTER_STATES.SPECIAL]: 'special',
-      [FIGHTER_STATES.VICTORY]: 'victory',
-      [FIGHTER_STATES.DEFEAT]: 'defeat'
+      [FIGHTER_STATES.IDLE]: "idle",
+      [FIGHTER_STATES.WALK]: "walk",
+      [FIGHTER_STATES.RUN]: "run",
+      [FIGHTER_STATES.JUMP]: "jump",
+      [FIGHTER_STATES.CROUCH]: "crouch",
+      [FIGHTER_STATES.PUNCH]: "punch",
+      [FIGHTER_STATES.KICK]: "kick",
+      [FIGHTER_STATES.BLOCK]: "block",
+      [FIGHTER_STATES.HIT]: "hit",
+      [FIGHTER_STATES.SPECIAL]: "special",
+      [FIGHTER_STATES.VICTORY]: "victory",
+      [FIGHTER_STATES.DEFEAT]: "defeat",
     };
 
-    const animSuffix = animMap[stateName] || 'idle';
+    const animSuffix = animMap[stateName] || "idle";
     const animKey = `${this.characterData.id}_${animSuffix}`;
 
     if (this.scene.anims.exists(animKey)) {
-      const currentKey = this.sprite.anims.currentAnim ? this.sprite.anims.currentAnim.key : '';
+      const currentKey = this.sprite.anims.currentAnim
+        ? this.sprite.anims.currentAnim.key
+        : "";
       if (forceRestart || currentKey !== animKey) {
         this.sprite.play(animKey, true);
       }
@@ -633,16 +703,26 @@ export default class Fighter {
   }
 
   syncVisuals() {
-    this.sprite.setPosition(this.x, this.y);
     this.sprite.setFlipX(this.facing === -1);
+
+    if (this.state === FIGHTER_STATES.DEFEAT) {
+      const fallProgress = Math.min(1, Math.abs(this.knockdownAngle || 0) / 88);
+      this.sprite.setOrigin(0.5, 0.55);
+      this.sprite.setPosition(this.x, this.y - 115 + fallProgress * 78);
+      this.sprite.setAngle(this.knockdownAngle || 0);
+
+      this.shadow.setPosition(this.x - this.facing * (fallProgress * 28), this.groundY - 6);
+      this.shadow.setScale(1 + fallProgress * 0.65, 0.85);
+      return;
+    }
+
+    this.sprite.setOrigin(0.5, 1);
+    this.sprite.setAngle(0);
+    this.sprite.setPosition(this.x, this.y);
 
     const heightOffset = Math.max(0, this.groundY - this.y);
     const shadowScale = Math.max(0.45, 1 - heightOffset / 320);
     this.shadow.setPosition(this.x, this.groundY - 8);
-    if (this.state === FIGHTER_STATES.DEFEAT && this.isGrounded) {
-      this.shadow.setScale(1.45, 0.85);
-    } else {
-      this.shadow.setScale(shadowScale);
-    }
+    this.shadow.setScale(shadowScale);
   }
 }
