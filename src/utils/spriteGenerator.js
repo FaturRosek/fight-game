@@ -813,32 +813,22 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
       offsetX = 6;
     }
     filterEffect = "contrast(1.16) saturate(1.28)";
-  } else if (stateName === "victory") {
-    selectedPose = colIndex % 2 === 0 ? idlePose : punchPose;
-    offsetY = colIndex % 2 === 1 ? -8 : 0;
+  } else if (stateName === 'victory') {
+    selectedPose = idlePose;
+    const breathCycle = [0, -3, -5, -2][colIndex] || 0;
+    const chestScale = [1, 1.02, 1.035, 1.015][colIndex] || 1;
+    offsetX = 0;
+    offsetY = breathCycle;
+    scaleX = chestScale;
+    scaleY = chestScale;
+    rotation = 0;
+    filterEffect = colIndex === 2 ? 'brightness(1.12) contrast(1.05)' : 'brightness(1.05)';
   } else if (stateName === 'defeat') {
-    if (colIndex === 0) {
-      selectedPose = walkPose;
-      rotation = -0.38;
-      offsetX = -14;
-      offsetY = -12;
-    } else if (colIndex === 1) {
-      selectedPose = kickPose;
-      rotation = -0.88;
-      offsetX = -26;
-      offsetY = 6;
-    } else if (colIndex === 2) {
-      selectedPose = walkPose;
-      rotation = -1.35;
-      offsetX = -32;
-      offsetY = 18;
-    } else {
-      selectedPose = idlePose;
-      rotation = -1.55;
-      offsetX = -36;
-      offsetY = 22;
-      scaleY = 0.94;
-    }
+    selectedPose = colIndex === 0 || colIndex === 1 ? hitPoseOrWalk(walkPose) : idlePose;
+    offsetX = 0;
+    offsetY = 0;
+    rotation = 0;
+    filterEffect = colIndex === 0 ? 'brightness(1.25) saturate(1.2)' : 'brightness(0.92)';
   }
 
   ctx.save();
@@ -859,22 +849,13 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
     ctx.fill();
   }
 
-  if (stateName === 'defeat') {
-    const pivotX = FRAME_WIDTH / 2;
-    const pivotY = FRAME_HEIGHT - 78;
-    ctx.translate(pivotX + offsetX, pivotY + offsetY);
-    ctx.rotate(rotation);
-    ctx.scale(scaleX, scaleY);
-    ctx.drawImage(selectedPose, -pivotX, -pivotY);
-  } else {
-    ctx.translate(footAnchorX + offsetX, footAnchorY + offsetY);
-    ctx.rotate(rotation);
-    ctx.scale(scaleX, scaleY);
-    if (filterEffect !== 'none') {
-      ctx.filter = filterEffect;
-    }
-    ctx.drawImage(selectedPose, -footAnchorX, -footAnchorY);
+  ctx.translate(footAnchorX + offsetX, footAnchorY + offsetY);
+  ctx.rotate(rotation);
+  ctx.scale(scaleX, scaleY);
+  if (filterEffect !== 'none') {
+    ctx.filter = filterEffect;
   }
+  ctx.drawImage(selectedPose, -footAnchorX, -footAnchorY);
   ctx.restore();
 
   if (drawStrikeArc) {
@@ -912,6 +893,10 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
     ctx.stroke();
     ctx.restore();
   }
+}
+
+function hitPoseOrWalk(walkPose) {
+  return walkPose;
 }
 
 function registerCharacterAnimations(scene, char) {
