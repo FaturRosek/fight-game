@@ -170,10 +170,10 @@ export const FIGHTER_STATES = {
 
 export const MATCH_CONFIG = {
   roundDurationSeconds: 99,
-  roundsToWin: 2,
-  maxStandardRounds: 3,
+  roundsToWin: 3,
+  maxStandardRounds: 5,
   introDelayMs: 1700,
-  roundEndHoldMs: 2400,
+  roundEndHoldMs: 2400
 };
 
 export const COMBAT_CONFIG = {

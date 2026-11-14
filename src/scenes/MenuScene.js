@@ -613,26 +613,13 @@ export default class MenuScene extends Phaser.Scene {
       { width: 230, height: 38, accentColor: 0xff9f0a, fontSize: "21px" },
     );
 
-    const roundLabel = this.add.text(
-      width / 2 - 310,
-      392,
-      "MATCH FORMAT",
-      labelStyle,
-    );
-    const formatText = (r) =>
-      r === 2 ? "BEST OF 3 (2 WINS)" : "SINGLE ROUND (1 WIN)";
-    const btnRound = createArcadeButton(
-      this,
-      width / 2 + 80,
-      404,
-      formatText(s.roundsToWin),
-      () => {
-        const next = GameSession.settings.roundsToWin === 2 ? 1 : 2;
-        saveSettings({ roundsToWin: next });
-        btnRound.setLabel(formatText(next));
-      },
-      { width: 260, height: 38, accentColor: 0xff9f0a, fontSize: "20px" },
-    );
+    const roundLabel = this.add.text(width / 2 - 310, 392, 'MATCH FORMAT', labelStyle);
+    const formatText = (r) => (r === 3 ? 'BEST OF 5 (3 WINS)' : 'BEST OF 3 (2 WINS)');
+    const btnRound = createArcadeButton(this, width / 2 + 80, 404, formatText(s.roundsToWin), () => {
+      const next = GameSession.settings.roundsToWin === 3 ? 2 : 3;
+      saveSettings({ roundsToWin: next });
+      btnRound.setLabel(formatText(next));
+    }, { width: 260, height: 38, accentColor: 0xff9f0a, fontSize: '20px' });
 
     const touchLabel = this.add.text(
       width / 2 - 310,

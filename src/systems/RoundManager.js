@@ -149,7 +149,7 @@ export default class RoundManager {
 
     const p1WonMatch = this.p1Wins >= this.roundsToWin;
     const p2WonMatch = this.p2Wins >= this.roundsToWin;
-    const reachedMaxCap = this.currentRound >= 5;
+    const reachedMaxCap = this.currentRound >= 7;
 
     this.activeTransitionEvent = this.scene.time.delayedCall(
       MATCH_CONFIG.roundEndHoldMs,

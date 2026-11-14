@@ -1,14 +1,14 @@
 import { CHARACTERS, ARENAS } from "../config/gameData.js";
 import { soundManager } from "../systems/SoundManager.js";
 
-const SETTINGS_STORAGE_KEY = "face_fighter_settings_v1";
+const SETTINGS_STORAGE_KEY = 'face_fighter_settings_v2';
 
 const defaultSettings = {
   bgmVolume: 70,
   sfxVolume: 85,
-  aiDifficulty: "Normal",
-  roundsToWin: 2,
-  touchControls: "AUTO",
+  aiDifficulty: 'Normal',
+  roundsToWin: 3,
+  touchControls: 'AUTO'
 };
 
 export function isTouchDevice() {

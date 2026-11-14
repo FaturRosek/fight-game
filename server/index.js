@@ -722,7 +722,7 @@ function resolveServerRound(room, winnerCode, reasonTitle) {
 
   const p1WonMatch = room.p1Wins >= MATCH_CONFIG.roundsToWin;
   const p2WonMatch = room.p2Wins >= MATCH_CONFIG.roundsToWin;
-  const reachedMaxCap = room.currentRound >= 5;
+  const reachedMaxCap = room.currentRound >= 7;
 
   room.phaseTimer = setTimeout(() => {
     if (!rooms.has(room.code)) return;

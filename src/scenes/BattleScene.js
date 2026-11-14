@@ -100,7 +100,7 @@ export default class BattleScene extends Phaser.Scene {
           this.trailP2Health = this.fighter2.maxHealth;
           this.inputManager.resetBuffers();
           if (this.aiController) this.aiController.reset();
-          this.roundTitleBadge.setText(`ROUND ${roundNumber} (BEST OF 3)`);
+          this.roundTitleBadge.setText(`ROUND ${roundNumber} (BEST OF 5)`);
         },
         onMatchEnd: (matchSummary) => {
           this.showMatchResultModal(matchSummary);
@@ -117,10 +117,10 @@ export default class BattleScene extends Phaser.Scene {
     });
 
     const modeHeadline = this.isOnline
-      ? `ONLINE ROOM [${networkManager.roomCode}] — YOU ARE P${this.onlineSlot} (${this.onlineSlot === 1 ? "RAMA" : "JUN"})`
+      ? `ONLINE ROOM [${networkManager.roomCode}] — YOU ARE P${this.onlineSlot} (${this.onlineSlot === 1 ? 'RAMA' : 'JUN'})`
       : this.isPVE
-        ? `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 3 ROUNDS`
-        : "LOCAL 2-PLAYER PvP — BEST OF 3 ROUNDS (FIRST TO 2 WINS)";
+        ? `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 5 ROUNDS`
+        : 'LOCAL 2-PLAYER PvP — BEST OF 5 ROUNDS (FIRST TO 3 WINS)';
 
     this.combatFeedText = this.add
       .text(width / 2, 108, modeHeadline, {
@@ -155,7 +155,7 @@ export default class BattleScene extends Phaser.Scene {
         this.isOnline
           ? `ONLINE SYNC ACTIVE\nRoom: ${networkManager.roomCode}`
           : this.isPVE
-            ? `AI CONTROLLED (${settings.aiDifficulty.toUpperCase()})\nBest of 3 Match Active`
+            ? `AI CONTROLLED (${settings.aiDifficulty.toUpperCase()})\nBest of 5 Match Active`
             : "P2: [UP]Jump [L/R]Move [DN]Crouch\nATK: [J]Punch [K]Kick [L]Spec [I]Block",
         {
           fontFamily: "monospace",
@@ -225,7 +225,7 @@ export default class BattleScene extends Phaser.Scene {
       this.trailP1Health = this.fighter1.maxHealth;
       this.trailP2Health = this.fighter2.maxHealth;
       this.inputManager.resetBuffers();
-      this.roundTitleBadge.setText(`ROUND ${info.round} (ONLINE BEST OF 3)`);
+      this.roundTitleBadge.setText(`ROUND ${info.round} (ONLINE BEST OF 5)`);
     };
 
     this.onOnlineHit = (ev) => {
@@ -517,25 +517,15 @@ export default class BattleScene extends Phaser.Scene {
       .setDepth(33);
 
     this.p1WinOrbs = [
-      this.add
-        .circle(width / 2 - 90, topY + 48, 9, 0x262636)
-        .setStrokeStyle(2, 0xffd60a)
-        .setDepth(33),
-      this.add
-        .circle(width / 2 - 66, topY + 48, 9, 0x262636)
-        .setStrokeStyle(2, 0xffd60a)
-        .setDepth(33),
+      this.add.circle(width / 2 - 108, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33),
+      this.add.circle(width / 2 - 86, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33),
+      this.add.circle(width / 2 - 64, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33)
     ];
 
     this.p2WinOrbs = [
-      this.add
-        .circle(width / 2 + 66, topY + 48, 9, 0x262636)
-        .setStrokeStyle(2, 0xffd60a)
-        .setDepth(33),
-      this.add
-        .circle(width / 2 + 90, topY + 48, 9, 0x262636)
-        .setStrokeStyle(2, 0xffd60a)
-        .setDepth(33),
+      this.add.circle(width / 2 + 64, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33),
+      this.add.circle(width / 2 + 86, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33),
+      this.add.circle(width / 2 + 108, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33)
     ];
 
     this.p1StateBadge = this.add
@@ -561,16 +551,13 @@ export default class BattleScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(33);
 
-    this.roundTitleBadge = this.add
-      .text(width / 2, 12, "ROUND 1 (BEST OF 3)", {
-        fontFamily: '"Rajdhani", sans-serif',
-        fontSize: "15px",
-        fontStyle: "bold",
-        color: "#ffd60a",
-        letterSpacing: 2,
-      })
-      .setOrigin(0.5)
-      .setDepth(33);
+    this.roundTitleBadge = this.add.text(width / 2, 12, 'ROUND 1 (BEST OF 5)', {
+      fontFamily: '"Rajdhani", sans-serif',
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#ffd60a',
+      letterSpacing: 2
+    }).setOrigin(0.5).setDepth(33);
 
     frameOverlay.fillStyle(0x160a0c, 0.95);
     frameOverlay.lineStyle(3, 0xffd60a, 1);
@@ -957,13 +944,13 @@ export default class BattleScene extends Phaser.Scene {
       );
       this.p2NameText.setText(`${p2Character.name} (AI)`);
       this.combatFeedText.setText(
-        `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 3 ROUNDS`,
+        `MODE: PLAYER VS AI (${settings.aiDifficulty.toUpperCase()}) — BEST OF 5 ROUNDS`,
       );
     } else {
       this.aiController = null;
       this.p2NameText.setText(`${p2Character.name} (P2)`);
       this.combatFeedText.setText(
-        "LOCAL 2-PLAYER PvP — BEST OF 3 ROUNDS (FIRST TO 2 WINS)",
+        "LOCAL 2-PLAYER PvP — BEST OF 5 ROUNDS (FIRST TO 3 WINS)",
       );
     }
 
