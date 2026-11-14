@@ -170,9 +170,9 @@ export default class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const header = this.add
-      .text(width / 2, 118, "SELECT COMBAT MODE", {
+      .text(width / 2, 112, "SELECT COMBAT MODE", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "50px",
+        fontSize: "48px",
         color: "#ffffff",
         stroke: "#ff3b30",
         strokeThickness: 2,
@@ -180,18 +180,23 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const sub = this.add
-      .text(width / 2, 168, "Choose how you want to enter the arena", {
-        fontSize: "17px",
-        color: "#b0b0ba",
-      })
+      .text(
+        width / 2,
+        160,
+        "Touch Controls fully supported in Player vs AI  •  Local 2P uses Keyboard",
+        {
+          fontSize: "15px",
+          color: "#b0b0ba",
+        },
+      )
       .setOrigin(0.5);
 
     const pveCard = this.createModeCard(
       width / 2 - 230,
-      height / 2 - 5,
+      height / 2 - 10,
       "PLAYER VS AI",
-      "SINGLE PLAYER ARCADE",
-      "Fight against computer-controlled JUN with adaptive tactical AI.",
+      "MOBILE TOUCH & DESKTOP",
+      "Fight against computer-controlled JUN with adaptive tactical AI and full virtual touch controller.",
       0xff3b30,
       () => {
         GameSession.mode = "PVE";
@@ -202,10 +207,10 @@ export default class MenuScene extends Phaser.Scene {
 
     const pvpCard = this.createModeCard(
       width / 2 + 230,
-      height / 2 - 5,
+      height / 2 - 10,
       "PLAYER VS PLAYER",
-      "LOCAL 2-PLAYER VERSUS",
-      "Head-to-head local multiplayer on one keyboard (RAMA vs JUN).",
+      "LOCAL 2-PLAYER KEYBOARD",
+      "Head-to-head local multiplayer on one keyboard (P1 can also use Touch Controls + P2 on Keyboard).",
       0x0a84ff,
       () => {
         GameSession.mode = "PVP";
@@ -216,7 +221,7 @@ export default class MenuScene extends Phaser.Scene {
 
     const diffs = ["Easy", "Normal", "Hard"];
     const diffLabel = this.add
-      .text(width / 2 - 230, height / 2 + 158, "AI DIFFICULTY:", {
+      .text(width / 2 - 230, height / 2 + 150, "AI DIFFICULTY:", {
         fontSize: "14px",
         fontStyle: "bold",
         color: "#ffd60a",
@@ -226,7 +231,7 @@ export default class MenuScene extends Phaser.Scene {
     const btnCycleDiff = createArcadeButton(
       this,
       width / 2 - 230,
-      height / 2 + 194,
+      height / 2 + 186,
       `DIFFICULTY: ${GameSession.settings.aiDifficulty.toUpperCase()}`,
       () => {
         const idx =
@@ -235,18 +240,18 @@ export default class MenuScene extends Phaser.Scene {
         saveSettings({ aiDifficulty: nextDiff });
         btnCycleDiff.setLabel(`DIFFICULTY: ${nextDiff.toUpperCase()}`);
       },
-      { width: 250, height: 38, accentColor: 0xff9f0a, fontSize: "15px" },
+      { width: 250, height: 40, accentColor: 0xff9f0a, fontSize: "15px" },
     );
 
     const btnBack = createArcadeButton(
-      this,
+      width && this,
       width / 2 + 230,
-      height / 2 + 194,
+      height / 2 + 186,
       "BACK TO MAIN MENU",
       () => {
         this.showMainPanel();
       },
-      { width: 250, height: 38, accentColor: 0x8e8e93, fontSize: "15px" },
+      { width: 250, height: 40, accentColor: 0x8e8e93, fontSize: "15px" },
     );
 
     this.panelContainer.add([
@@ -321,9 +326,9 @@ export default class MenuScene extends Phaser.Scene {
     const s = GameSession.settings;
 
     const header = this.add
-      .text(width / 2, 115, "GAME SETTINGS", {
+      .text(width / 2, 108, "GAME SETTINGS", {
         fontFamily: 'Impact, "Arial Black", sans-serif',
-        fontSize: "48px",
+        fontSize: "46px",
         color: "#ffffff",
       })
       .setOrigin(0.5);
@@ -331,17 +336,17 @@ export default class MenuScene extends Phaser.Scene {
     const panelBg = this.add.graphics();
     panelBg.fillStyle(0x14141f, 0.95);
     panelBg.lineStyle(2, 0xff9f0a, 0.8);
-    panelBg.fillRect(width / 2 - 360, 165, 720, 380);
-    panelBg.strokeRect(width / 2 - 360, 165, 720, 380);
+    panelBg.fillRect(width / 2 - 360, 152, 720, 415);
+    panelBg.strokeRect(width / 2 - 360, 152, 720, 415);
 
-    const bgmLabel = this.add.text(width / 2 - 310, 215, "MUSIC VOLUME", {
-      fontSize: "20px",
+    const bgmLabel = this.add.text(width / 2 - 310, 192, "MUSIC VOLUME", {
+      fontSize: "19px",
       fontStyle: "bold",
       color: "#ffffff",
     });
     const bgmValue = this.add
-      .text(width / 2 + 80, 215, `${s.bgmVolume}%`, {
-        fontSize: "20px",
+      .text(width / 2 + 80, 192, `${s.bgmVolume}%`, {
+        fontSize: "19px",
         fontStyle: "bold",
         color: "#ffd60a",
       })
@@ -350,37 +355,37 @@ export default class MenuScene extends Phaser.Scene {
     const btnBgmDown = createArcadeButton(
       this,
       width / 2 - 20,
-      228,
+      204,
       "-",
       () => {
         const next = Math.max(0, GameSession.settings.bgmVolume - 10);
         saveSettings({ bgmVolume: next });
         bgmValue.setText(`${next}%`);
       },
-      { width: 60, height: 38 },
+      { width: 60, height: 36 },
     );
 
     const btnBgmUp = createArcadeButton(
       this,
       width / 2 + 180,
-      228,
+      204,
       "+",
       () => {
         const next = Math.min(100, GameSession.settings.bgmVolume + 10);
         saveSettings({ bgmVolume: next });
         bgmValue.setText(`${next}%`);
       },
-      { width: 60, height: 38 },
+      { width: 60, height: 36 },
     );
 
-    const sfxLabel = this.add.text(width / 2 - 310, 295, "SFX VOLUME", {
-      fontSize: "20px",
+    const sfxLabel = this.add.text(width / 2 - 310, 260, "SFX VOLUME", {
+      fontSize: "19px",
       fontStyle: "bold",
       color: "#ffffff",
     });
     const sfxValue = this.add
-      .text(width / 2 + 80, 295, `${s.sfxVolume}%`, {
-        fontSize: "20px",
+      .text(width / 2 + 80, 260, `${s.sfxVolume}%`, {
+        fontSize: "19px",
         fontStyle: "bold",
         color: "#ffd60a",
       })
@@ -389,31 +394,31 @@ export default class MenuScene extends Phaser.Scene {
     const btnSfxDown = createArcadeButton(
       this,
       width / 2 - 20,
-      308,
+      272,
       "-",
       () => {
         const next = Math.max(0, GameSession.settings.sfxVolume - 10);
         saveSettings({ sfxVolume: next });
         sfxValue.setText(`${next}%`);
       },
-      { width: 60, height: 38 },
+      { width: 60, height: 36 },
     );
 
     const btnSfxUp = createArcadeButton(
       this,
       width / 2 + 180,
-      308,
+      272,
       "+",
       () => {
         const next = Math.min(100, GameSession.settings.sfxVolume + 10);
         saveSettings({ sfxVolume: next });
         sfxValue.setText(`${next}%`);
       },
-      { width: 60, height: 38 },
+      { width: 60, height: 36 },
     );
 
-    const diffLabel = this.add.text(width / 2 - 310, 375, "AI DIFFICULTY", {
-      fontSize: "20px",
+    const diffLabel = this.add.text(width / 2 - 310, 328, "AI DIFFICULTY", {
+      fontSize: "19px",
       fontStyle: "bold",
       color: "#ffffff",
     });
@@ -421,7 +426,7 @@ export default class MenuScene extends Phaser.Scene {
     const btnDiff = createArcadeButton(
       this,
       width / 2 + 80,
-      388,
+      340,
       s.aiDifficulty.toUpperCase(),
       () => {
         const idx =
@@ -430,11 +435,11 @@ export default class MenuScene extends Phaser.Scene {
         saveSettings({ aiDifficulty: next });
         btnDiff.setLabel(next.toUpperCase());
       },
-      { width: 220, height: 40, accentColor: 0xff9f0a },
+      { width: 220, height: 38, accentColor: 0xff9f0a },
     );
 
-    const roundLabel = this.add.text(width / 2 - 310, 455, "MATCH FORMAT", {
-      fontSize: "20px",
+    const roundLabel = this.add.text(width / 2 - 310, 396, "MATCH FORMAT", {
+      fontSize: "19px",
       fontStyle: "bold",
       color: "#ffffff",
     });
@@ -443,23 +448,45 @@ export default class MenuScene extends Phaser.Scene {
     const btnRound = createArcadeButton(
       this,
       width / 2 + 80,
-      468,
+      408,
       formatText(s.roundsToWin),
       () => {
         const next = GameSession.settings.roundsToWin === 2 ? 1 : 2;
         saveSettings({ roundsToWin: next });
         btnRound.setLabel(formatText(next));
       },
-      { width: 260, height: 40, accentColor: 0xff9f0a, fontSize: "16px" },
+      { width: 260, height: 38, accentColor: 0xff9f0a, fontSize: "15px" },
+    );
+
+    const touchLabel = this.add.text(width / 2 - 310, 464, "TOUCH CONTROLS", {
+      fontSize: "19px",
+      fontStyle: "bold",
+      color: "#ffffff",
+    });
+    const touchModes = ["AUTO", "ON", "OFF"];
+    const currentTouchPref = s.touchControls || "AUTO";
+    const btnTouch = createArcadeButton(
+      this,
+      width / 2 + 80,
+      476,
+      `MODE: ${currentTouchPref}`,
+      () => {
+        const cur = GameSession.settings.touchControls || "AUTO";
+        const idx = (touchModes.indexOf(cur) + 1) % touchModes.length;
+        const next = touchModes[idx];
+        saveSettings({ touchControls: next });
+        btnTouch.setLabel(`MODE: ${next}`);
+      },
+      { width: 220, height: 38, accentColor: 0x0a84ff, fontSize: "15px" },
     );
 
     const savedHint = this.add
       .text(
         width / 2,
-        520,
+        534,
         "Preferences are automatically saved to LocalStorage",
         {
-          fontSize: "14px",
+          fontSize: "13px",
           color: "#30d158",
         },
       )
@@ -468,12 +495,12 @@ export default class MenuScene extends Phaser.Scene {
     const btnBack = createArcadeButton(
       this,
       width / 2,
-      height - 95,
+      height - 88,
       "BACK TO MAIN MENU",
       () => {
         this.showMainPanel();
       },
-      { width: 280, height: 46, accentColor: 0x8e8e93, fontSize: "18px" },
+      { width: 280, height: 44, accentColor: 0x8e8e93, fontSize: "17px" },
     );
 
     this.panelContainer.add([
@@ -491,6 +518,8 @@ export default class MenuScene extends Phaser.Scene {
       btnDiff,
       roundLabel,
       btnRound,
+      touchLabel,
+      btnTouch,
       savedHint,
       btnBack,
     ]);

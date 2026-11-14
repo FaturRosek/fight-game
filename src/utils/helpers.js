@@ -7,7 +7,29 @@ const defaultSettings = {
   sfxVolume: 85,
   aiDifficulty: "Normal",
   roundsToWin: 2,
+  touchControls: "AUTO",
 };
+
+export function isTouchDevice() {
+  if (typeof window === "undefined") return false;
+  return (
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0 ||
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
+export function shouldShowTouchControls() {
+  const pref = GameSession?.settings?.touchControls || "AUTO";
+  if (pref === "ON") return true;
+  if (pref === "OFF") return false;
+  return isTouchDevice();
+}
+
+export function isPortraitMobile() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < window.innerHeight && window.innerWidth <= 960;
+}
 
 export const GameSession = {
   mode: "PVE",
@@ -34,7 +56,9 @@ export function saveSettings(newSettings) {
       SETTINGS_STORAGE_KEY,
       JSON.stringify(GameSession.settings),
     );
-  } catch {}
+  } catch {
+    return;
+  }
 }
 
 export function drawArcadeBackground(scene, primaryHex = 0xff3b30) {
