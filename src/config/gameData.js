@@ -172,8 +172,8 @@ export const MATCH_CONFIG = {
   roundDurationSeconds: 99,
   roundsToWin: 3,
   maxStandardRounds: 5,
-  introDelayMs: 1700,
-  roundEndHoldMs: 2400
+  introDelayMs: 1800,
+  roundEndHoldMs: 4200
 };
 
 export const COMBAT_CONFIG = {
