@@ -94,6 +94,9 @@ export default class BattleScene extends Phaser.Scene {
           this.updateCenterBanner(title, sub, color, visible);
         },
         onRoundReset: (roundNumber) => {
+          this.combatSystem.updateFacingDirections();
+          this.fighter1.syncVisuals();
+          this.fighter2.syncVisuals();
           this.displayedP1Health = this.fighter1.maxHealth;
           this.displayedP2Health = this.fighter2.maxHealth;
           this.trailP1Health = this.fighter1.maxHealth;
@@ -220,6 +223,9 @@ export default class BattleScene extends Phaser.Scene {
     this.onOnlineRoundReset = (info) => {
       this.fighter1.resetFighter();
       this.fighter2.resetFighter();
+      this.combatSystem.updateFacingDirections();
+      this.fighter1.syncVisuals();
+      this.fighter2.syncVisuals();
       this.displayedP1Health = this.fighter1.maxHealth;
       this.displayedP2Health = this.fighter2.maxHealth;
       this.trailP1Health = this.fighter1.maxHealth;
@@ -528,28 +534,23 @@ export default class BattleScene extends Phaser.Scene {
       this.add.circle(width / 2 + 108, topY + 48, 8, 0x262636).setStrokeStyle(2, 0xffd60a).setDepth(33)
     ];
 
-    this.p1StateBadge = this.add
-      .text(285, topY + 43, "HP: 100 | IDLE | SP: READY", {
-        fontFamily: '"Rajdhani", sans-serif',
-        fontSize: "13px",
-        fontStyle: "bold",
-        color: "#30d158",
-        backgroundColor: "#000000aa",
-        padding: { x: 8, y: 2 },
-      })
-      .setDepth(33);
+    this.p1StateBadge = this.add.text(70, topY + 68, 'HP: 100 | IDLE | SP: READY', {
+      fontFamily: '"Rajdhani", sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#30d158',
+      backgroundColor: '#000000cc',
+      padding: { x: 8, y: 2 }
+    }).setDepth(33);
 
-    this.p2StateBadge = this.add
-      .text(width - 285, topY + 43, "HP: 100 | IDLE | SP: READY", {
-        fontFamily: '"Rajdhani", sans-serif',
-        fontSize: "13px",
-        fontStyle: "bold",
-        color: "#30d158",
-        backgroundColor: "#000000aa",
-        padding: { x: 8, y: 2 },
-      })
-      .setOrigin(1, 0)
-      .setDepth(33);
+    this.p2StateBadge = this.add.text(width - 70, topY + 68, 'HP: 100 | IDLE | SP: READY', {
+      fontFamily: '"Rajdhani", sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#30d158',
+      backgroundColor: '#000000cc',
+      padding: { x: 8, y: 2 }
+    }).setOrigin(1, 0).setDepth(33);
 
     this.roundTitleBadge = this.add.text(width / 2, 12, 'ROUND 1 (BEST OF 5)', {
       fontFamily: '"Rajdhani", sans-serif',
@@ -1128,6 +1129,10 @@ export default class BattleScene extends Phaser.Scene {
 
     if (canControlFighters) {
       this.combatSystem.update();
+    } else if (this.roundManager.phase === 'INTRO') {
+      this.combatSystem.updateFacingDirections();
+      this.fighter1.syncVisuals();
+      this.fighter2.syncVisuals();
     }
 
     this.updateHUD(delta);
