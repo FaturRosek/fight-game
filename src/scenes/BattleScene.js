@@ -7,10 +7,13 @@ import CombatSystem from "../systems/CombatSystem.js";
 import EffectsManager from "../systems/EffectsManager.js";
 import RoundManager from "../systems/RoundManager.js";
 import { soundManager } from "../systems/SoundManager.js";
+import TouchControls from "../systems/TouchControls.js";
 import {
   GameSession,
   saveSettings,
   createArcadeButton,
+  shouldShowTouchControls,
+  isPortraitMobile,
 } from "../utils/helpers.js";
 
 export default class BattleScene extends Phaser.Scene {
@@ -52,6 +55,8 @@ export default class BattleScene extends Phaser.Scene {
     });
 
     this.inputManager = new InputManager(this);
+    this.touchControls = new TouchControls(this);
+    this.inputManager.attachTouchControls(this.touchControls);
     this.aiController = this.isPVE
       ? new AIController(
           this,
@@ -149,6 +154,12 @@ export default class BattleScene extends Phaser.Scene {
       )
       .setOrigin(1, 0)
       .setDepth(32);
+
+    const touchActive = shouldShowTouchControls();
+    this.p1ControlGuide.setVisible(!touchActive);
+    this.p2ControlGuide.setVisible(!touchActive);
+    this.p1StateBadge.setVisible(!touchActive);
+    this.p2StateBadge.setVisible(!touchActive);
 
     this.movementDebugText = this.add
       .text(width / 2, 136, "ROUND 1 READY", {
@@ -772,122 +783,67 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   buildBottomUtilityBar(width, height) {
-    createArcadeButton(
-      this,
-      125,
-      height - 28,
-      "CHANGE FIGHTER",
-      () => {
-        this.roundManager.destroy();
-        this.scene.start("CharacterScene");
-      },
-      { width: 175, height: 34, accentColor: 0x8e8e93, fontSize: "13px" },
-    ).setDepth(45);
+    const centerY = height - 24;
 
-    const btnDebug = createArcadeButton(
-      this,
-      315,
-      height - 28,
-      "HITBOX DEBUG: OFF",
-      () => {
-        this.showDebugBoxes = !this.showDebugBoxes;
-        this.movementDebugText.setVisible(this.showDebugBoxes);
-        btnDebug.setLabel(
-          `HITBOX DEBUG: ${this.showDebugBoxes ? "ON" : "OFF"}`,
-        );
-      },
-      { width: 180, height: 34, accentColor: 0x0a84ff, fontSize: "13px" },
-    ).setDepth(45);
+    createArcadeButton(this, width / 2 - 270, centerY, 'FIGHTERS', () => {
+      this.roundManager.destroy();
+      this.scene.start('CharacterScene');
+    }, { width: 125, height: 30, accentColor: 0x8e8e93, fontSize: '12px' }).setDepth(45);
+
+    const btnDebug = createArcadeButton(this, width / 2 - 135, centerY, 'HITBOX: OFF', () => {
+      this.showDebugBoxes = !this.showDebugBoxes;
+      this.movementDebugText.setVisible(this.showDebugBoxes);
+      btnDebug.setLabel(`HITBOX: ${this.showDebugBoxes ? 'ON' : 'OFF'}`);
+    }, { width: 125, height: 30, accentColor: 0x0a84ff, fontSize: '12px' }).setDepth(45);
 
     const btnMode = createArcadeButton(
       this,
-      515,
-      height - 28,
-      this.isPVE ? "MODE: PvAI (CLICK->PvP)" : "MODE: 2P PvP (CLICK->AI)",
+      width / 2,
+      centerY,
+      this.isPVE ? 'MODE: PvAI' : 'MODE: 2P PvP',
       () => {
         this.toggleGameMode();
-        btnMode.setLabel(
-          this.isPVE ? "MODE: PvAI (CLICK->PvP)" : "MODE: 2P PvP (CLICK->AI)",
-        );
-        btnDiff.setLabel(
-          this.isPVE
-            ? `AI: ${GameSession.settings.aiDifficulty.toUpperCase()}`
-            : "P2: KEYBOARD READY",
-        );
+        btnMode.setLabel(this.isPVE ? 'MODE: PvAI' : 'MODE: 2P PvP');
       },
-      { width: 200, height: 34, accentColor: 0x30d158, fontSize: "12px" },
+      { width: 130, height: 30, accentColor: 0x30d158, fontSize: '12px' }
     ).setDepth(45);
 
-    const diffs = ["Easy", "Normal", "Hard"];
-    const btnDiff = createArcadeButton(
-      this,
-      725,
-      height - 28,
-      this.isPVE
-        ? `AI: ${GameSession.settings.aiDifficulty.toUpperCase()}`
-        : "P2: KEYBOARD READY",
-      () => {
-        if (!this.isPVE || !this.aiController) return;
-        const idx =
-          (diffs.indexOf(GameSession.settings.aiDifficulty) + 1) % diffs.length;
-        const nextDiff = diffs[idx];
-        saveSettings({ aiDifficulty: nextDiff });
-        this.aiController.setDifficulty(nextDiff);
-        btnDiff.setLabel(`AI: ${nextDiff.toUpperCase()}`);
-        this.p2ControlGuide.setText(
-          `AI CONTROLLED (${nextDiff.toUpperCase()})\nBest of 3 Match Active`,
-        );
-      },
-      { width: 190, height: 34, accentColor: 0xff9f0a, fontSize: "12px" },
-    ).setDepth(45);
+    createArcadeButton(this, width / 2 + 135, centerY, 'RESTART', () => {
+      this.resultModal.setVisible(false);
+      this.roundManager.startMatch();
+      this.combatFeedText.setText('MATCH RESTARTED — ROUND 1');
+    }, { width: 125, height: 30, accentColor: 0xff9f0a, fontSize: '12px' }).setDepth(45);
 
-    createArcadeButton(
-      this,
-      930,
-      height - 28,
-      "RESTART MATCH",
-      () => {
-        this.resultModal.setVisible(false);
-        this.roundManager.startMatch();
-        this.combatFeedText.setText("MATCH RESTARTED — ROUND 1");
-      },
-      { width: 180, height: 34, accentColor: 0xff9f0a, fontSize: "13px" },
-    ).setDepth(45);
-
-    createArcadeButton(
-      this,
-      width - 125,
-      height - 28,
-      "MAIN MENU",
-      () => {
-        this.roundManager.destroy();
-        this.scene.start("MenuScene");
-      },
-      { width: 175, height: 34, accentColor: 0xff3b30, fontSize: "13px" },
-    ).setDepth(45);
+    createArcadeButton(this, width / 2 + 270, centerY, 'MENU', () => {
+      this.roundManager.destroy();
+      this.scene.start('MenuScene');
+    }, { width: 125, height: 30, accentColor: 0xff3b30, fontSize: '12px' }).setDepth(45);
   }
 
   update(time, delta) {
-    if (
-      !this.fighter1 ||
-      !this.fighter2 ||
-      !this.inputManager ||
-      !this.roundManager
-    )
+    if (!this.fighter1 || !this.fighter2 || !this.inputManager || !this.roundManager) return;
+
+    if (isPortraitMobile()) {
+      if (this.touchControls) this.touchControls.releaseAll();
       return;
+    }
 
     this.roundManager.update(delta);
 
     const canControlFighters = this.roundManager.isFighting();
+    if (this.touchControls) {
+      this.touchControls.setEnabled(canControlFighters);
+      this.touchControls.updateSpecialStatus(this.fighter1.cooldowns.special);
+    }
 
     const p1Input = canControlFighters
       ? this.inputManager.getPlayerState(1, delta)
       : null;
 
     const p2Input = canControlFighters
-      ? this.isPVE && this.aiController
+      ? (this.isPVE && this.aiController
         ? this.aiController.getInputState(delta)
-        : this.inputManager.getPlayerState(2, delta)
+        : this.inputManager.getPlayerState(2, delta))
       : null;
 
     this.fighter1.update(delta, p1Input);
@@ -898,9 +854,7 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     this.updateHUD(delta);
-    ffgggff;
     this.drawDebugBoxes();
     this.inputManager.clearJustPressed();
-    ddd;
   }
 }

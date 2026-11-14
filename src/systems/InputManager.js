@@ -39,6 +39,7 @@ export default class InputManager {
     this.p1Buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
     this.p2Buffer = { jump: 0, punch: 0, kick: 0, special: 0 };
 
+    this.touchControls = null;
     this.p1Keys = this.mapPlayerKeys(KEY_BINDINGS.player1);
     this.p2Keys = this.mapPlayerKeys(KEY_BINDINGS.player2);
 
@@ -100,6 +101,10 @@ export default class InputManager {
     });
   }
 
+  attachTouchControls(touchControls) {
+    this.touchControls = touchControls;
+  }
+
   mapPlayerKeys(bindingConfig) {
     const mapped = {};
     Object.keys(bindingConfig).forEach((action) => {
@@ -155,6 +160,7 @@ export default class InputManager {
     const keys = playerNumber === 1 ? this.p1Keys : this.p2Keys;
     const buffer = playerNumber === 1 ? this.p1Buffer : this.p2Buffer;
     const bufferWindow = COMBAT_CONFIG.inputBufferWindowMs || 130;
+    const touch = playerNumber === 1 ? this.touchControls : null;
 
     Object.keys(buffer).forEach((k) => {
       if (buffer[k] > 0) {
@@ -162,16 +168,21 @@ export default class InputManager {
       }
     });
 
-    if (this.checkRawJustPressed(keys.up)) buffer.jump = bufferWindow;
-    if (this.checkRawJustPressed(keys.punch)) buffer.punch = bufferWindow;
-    if (this.checkRawJustPressed(keys.kick)) buffer.kick = bufferWindow;
-    if (this.checkRawJustPressed(keys.special)) buffer.special = bufferWindow;
+    const touchJumpPressed = touch ? touch.consumeJustPressed('up') : false;
+    const touchPunchPressed = touch ? touch.consumeJustPressed('punch') : false;
+    const touchKickPressed = touch ? touch.consumeJustPressed('kick') : false;
+    const touchSpecPressed = touch ? touch.consumeJustPressed('special') : false;
 
-    const left = this.isActionHeld(keys.left);
-    const right = this.isActionHeld(keys.right);
-    const up = this.isActionHeld(keys.up);
-    const down = this.isActionHeld(keys.down);
-    const blockHeld = this.isActionHeld(keys.block);
+    if (this.checkRawJustPressed(keys.up) || touchJumpPressed) buffer.jump = bufferWindow;
+    if (this.checkRawJustPressed(keys.punch) || touchPunchPressed) buffer.punch = bufferWindow;
+    if (this.checkRawJustPressed(keys.kick) || touchKickPressed) buffer.kick = bufferWindow;
+    if (this.checkRawJustPressed(keys.special) || touchSpecPressed) buffer.special = bufferWindow;
+
+    const left = this.isActionHeld(keys.left) || Boolean(touch && touch.isHeld('left'));
+    const right = this.isActionHeld(keys.right) || Boolean(touch && touch.isHeld('right'));
+    const up = this.isActionHeld(keys.up) || Boolean(touch && touch.isHeld('up'));
+    const down = this.isActionHeld(keys.down) || Boolean(touch && touch.isHeld('down'));
+    const blockHeld = this.isActionHeld(keys.block) || Boolean(touch && touch.isHeld('block'));
 
     return {
       left,
@@ -187,7 +198,7 @@ export default class InputManager {
         if (buffer[actionName] !== undefined) {
           buffer[actionName] = 0;
         }
-      },
+      }
     };
   }
 
