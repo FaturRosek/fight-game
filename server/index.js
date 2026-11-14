@@ -522,7 +522,12 @@ function applyServerPhysics(f, dt) {
       f.y = f.groundY;
       f.velocityY = 0;
       f.isGrounded = true;
-      if (!f.activeAttackSpec && f.state !== FIGHTER_STATES.HIT) {
+      if (
+        !f.activeAttackSpec &&
+        f.state !== FIGHTER_STATES.HIT &&
+        f.state !== FIGHTER_STATES.DEFEAT &&
+        f.state !== FIGHTER_STATES.VICTORY
+      ) {
         f.state = FIGHTER_STATES.IDLE;
       }
     }
@@ -581,6 +586,12 @@ function applyDamageToServerFighter(defender, spec, attackerDir) {
   if (isBlocking) {
     defender.stunTimerMs = spec.blockStunMs;
     return { blocked: true, damage: finalDamage };
+  }
+
+  if (defender.health <= 0) {
+    defender.stunTimerMs = 0;
+    defender.state = FIGHTER_STATES.DEFEAT;
+    return { blocked: false, damage: finalDamage };
   }
 
   defender.stunTimerMs = spec.hitStunMs;
