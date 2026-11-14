@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 
-const backendTarget = process.env.VITE_BACKEND_PROXY || "http://localhost:3001";
+const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 export default defineConfig({
   base: "./",
@@ -11,7 +11,7 @@ export default defineConfig({
     open: true,
     proxy: {
       "/socket.io": {
-        target: backendTarget,
+        target: backendUrl,
         ws: true,
         changeOrigin: true,
       },
