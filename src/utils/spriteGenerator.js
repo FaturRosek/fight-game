@@ -816,42 +816,65 @@ function renderPoseSequenceFrame(ctx, char, poses, stateName, colIndex) {
   } else if (stateName === "victory") {
     selectedPose = colIndex % 2 === 0 ? idlePose : punchPose;
     offsetY = colIndex % 2 === 1 ? -8 : 0;
-  } else if (stateName === "defeat") {
-    selectedPose = walkPose;
-    const progress = (colIndex + 1) / 4;
-    rotation = -0.34 * progress;
-    scaleY = 1 - 0.24 * progress;
-    offsetY = 16 * progress;
+  } else if (stateName === 'defeat') {
+    if (colIndex === 0) {
+      selectedPose = walkPose;
+      rotation = -0.38;
+      offsetX = -14;
+      offsetY = -12;
+    } else if (colIndex === 1) {
+      selectedPose = kickPose;
+      rotation = -0.88;
+      offsetX = -26;
+      offsetY = 6;
+    } else if (colIndex === 2) {
+      selectedPose = walkPose;
+      rotation = -1.35;
+      offsetX = -32;
+      offsetY = 18;
+    } else {
+      selectedPose = idlePose;
+      rotation = -1.55;
+      offsetX = -36;
+      offsetY = 22;
+      scaleY = 0.94;
+    }
   }
 
   ctx.save();
-  if (stateName === "special" && colIndex >= 1) {
+  if (stateName === 'special' && colIndex >= 1) {
     const auraGrad = ctx.createRadialGradient(
       footAnchorX + offsetX,
       footAnchorY - 135,
       12,
       footAnchorX + offsetX,
       footAnchorY - 135,
-      105,
+      105
     );
-    auraGrad.addColorStop(
-      0,
-      isP1 ? "rgba(255, 65, 35, 0.52)" : "rgba(25, 165, 255, 0.52)",
-    );
-    auraGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+    auraGrad.addColorStop(0, isP1 ? 'rgba(255, 65, 35, 0.52)' : 'rgba(25, 165, 255, 0.52)');
+    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = auraGrad;
     ctx.beginPath();
     ctx.arc(footAnchorX + offsetX, footAnchorY - 135, 105, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  ctx.translate(footAnchorX + offsetX, footAnchorY + offsetY);
-  ctx.rotate(rotation);
-  ctx.scale(scaleX, scaleY);
-  if (filterEffect !== "none") {
-    ctx.filter = filterEffect;
+  if (stateName === 'defeat') {
+    const pivotX = FRAME_WIDTH / 2;
+    const pivotY = FRAME_HEIGHT - 78;
+    ctx.translate(pivotX + offsetX, pivotY + offsetY);
+    ctx.rotate(rotation);
+    ctx.scale(scaleX, scaleY);
+    ctx.drawImage(selectedPose, -pivotX, -pivotY);
+  } else {
+    ctx.translate(footAnchorX + offsetX, footAnchorY + offsetY);
+    ctx.rotate(rotation);
+    ctx.scale(scaleX, scaleY);
+    if (filterEffect !== 'none') {
+      ctx.filter = filterEffect;
+    }
+    ctx.drawImage(selectedPose, -footAnchorX, -footAnchorY);
   }
-  ctx.drawImage(selectedPose, -footAnchorX, -footAnchorY);
   ctx.restore();
 
   if (drawStrikeArc) {

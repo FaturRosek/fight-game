@@ -232,6 +232,11 @@ export default class BattleScene extends Phaser.Scene {
       const attacker = ev.attackerNum === 1 ? this.fighter1 : this.fighter2;
       const defender = ev.defenderNum === 1 ? this.fighter1 : this.fighter2;
 
+      defender.health = Math.max(0, defender.health - ev.damage);
+      if ( !ev.blocked && defender.health > 0 ) {
+        defender.setState('HIT', true);
+      }
+
       soundManager.playHit(ev.attackState, ev.blocked);
       this.effectsManager.spawnHitEffect(
         ev.impactX,
@@ -812,46 +817,16 @@ export default class BattleScene extends Phaser.Scene {
 
   updateHUD(deltaMs) {
     const safeDelta = deltaMs > 0 ? Math.min(deltaMs, 50) : 16.67;
-    const lerpSpeed = Math.min(1, safeDelta * 0.018);
-    const trailSpeed = Math.min(1, safeDelta * 0.006);
+    const trailSpeed = Math.min(1, safeDelta * 0.008);
 
-    const targetP1 = Phaser.Math.Clamp(
-      this.fighter1.health,
-      0,
-      this.fighter1.maxHealth,
-    );
-    const targetP2 = Phaser.Math.Clamp(
-      this.fighter2.health,
-      0,
-      this.fighter2.maxHealth,
-    );
+    const targetP1 = Phaser.Math.Clamp(this.fighter1.health, 0, this.fighter1.maxHealth);
+    const targetP2 = Phaser.Math.Clamp(this.fighter2.health, 0, this.fighter2.maxHealth);
 
-    this.displayedP1Health = Phaser.Math.Linear(
-      this.displayedP1Health,
-      targetP1,
-      lerpSpeed,
-    );
-    this.displayedP2Health = Phaser.Math.Linear(
-      this.displayedP2Health,
-      targetP2,
-      lerpSpeed,
-    );
+    this.displayedP1Health = targetP1;
+    this.displayedP2Health = targetP2;
 
-    if (Math.abs(this.displayedP1Health - targetP1) < 0.25)
-      this.displayedP1Health = targetP1;
-    if (Math.abs(this.displayedP2Health - targetP2) < 0.25)
-      this.displayedP2Health = targetP2;
-
-    this.trailP1Health = Phaser.Math.Linear(
-      this.trailP1Health,
-      targetP1,
-      trailSpeed,
-    );
-    this.trailP2Health = Phaser.Math.Linear(
-      this.trailP2Health,
-      targetP2,
-      trailSpeed,
-    );
+    this.trailP1Health = Phaser.Math.Linear(this.trailP1Health, targetP1, trailSpeed);
+    this.trailP2Health = Phaser.Math.Linear(this.trailP2Health, targetP2, trailSpeed);
 
     const p1Ratio = this.displayedP1Health / this.fighter1.maxHealth;
     const p2Ratio = this.displayedP2Health / this.fighter2.maxHealth;

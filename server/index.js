@@ -18,7 +18,7 @@ const distPath = path.resolve(__dirname, "../dist");
 
 const PORT = Number(process.env.PORT) || 3001;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
-const TICK_RATE = 30;
+const TICK_RATE = 60;
 const TICK_MS = 1000 / TICK_RATE;
 const RECONNECT_GRACE_MS = 30000;
 const STALE_ROOM_TTL_MS = 15 * 60 * 1000;
@@ -696,12 +696,18 @@ function resolveServerRound(room, winnerCode, reasonTitle) {
     bannerColor = '#ff3b30';
     f1.state = FIGHTER_STATES.VICTORY;
     f2.state = FIGHTER_STATES.DEFEAT;
+    f2.isGrounded = false;
+    f2.velocityY = -400;
+    f2.knockbackVelocity = f1.facing * 340;
   } else if (winnerCode === 'P2') {
     room.p2Wins += 1;
     subMessage = `${f2.name} (P2) WINS ROUND ${room.currentRound}`;
     bannerColor = '#0a84ff';
     f2.state = FIGHTER_STATES.VICTORY;
     f1.state = FIGHTER_STATES.DEFEAT;
+    f1.isGrounded = false;
+    f1.velocityY = -400;
+    f1.knockbackVelocity = f2.facing * 340;
   } else {
     f1.state = FIGHTER_STATES.IDLE;
     f2.state = FIGHTER_STATES.IDLE;

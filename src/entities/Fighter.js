@@ -98,6 +98,7 @@ export default class Fighter {
     this.cooldowns.kick = 0;
     this.cooldowns.special = 0;
     this.sprite.clearTint();
+    this.sprite.setAngle(0);
     this.sprite.setScale(this.baseScale);
     this.setState(FIGHTER_STATES.IDLE, true);
     this.updateBounds();
@@ -193,6 +194,16 @@ export default class Fighter {
     this.stunTimerMs = 0;
     this.hitStopMs = 0;
     this.sprite.clearTint();
+
+    if (endState === FIGHTER_STATES.DEFEAT) {
+      this.isGrounded = false;
+      this.velocityY = -420;
+      this.knockbackVelocity = -this.facing * 360;
+      if (this.scene.effectsManager) {
+        this.scene.effectsManager.spawnKnockbackBurst(this.x, this.groundY, -this.facing, true);
+      }
+    }
+
     this.setState(endState, true);
   }
 
@@ -419,23 +430,14 @@ export default class Fighter {
     const activeEnd = spec.startupMs + spec.activeMs;
     const totalDuration = activeEnd + spec.recoveryMs;
 
-    const currentAnimFrame = this.sprite.anims?.currentFrame?.index ?? 1;
-    const inTimeWindow =
-      this.attackElapsedMs >= activeStart && this.attackElapsedMs <= activeEnd;
-    const inStrikeFrame =
-      currentAnimFrame === 2 || currentAnimFrame === 3 || inTimeWindow;
+    const inTimeWindow = this.attackElapsedMs >= activeStart && this.attackElapsedMs <= activeEnd;
+    this.isHitboxActive = !this.hasHitCurrentAttack && inTimeWindow;
 
-    this.isHitboxActive =
-      !this.hasHitCurrentAttack && inTimeWindow && inStrikeFrame;
-
-    if (spec.state === "SPECIAL" && inTimeWindow && this.scene.effectsManager) {
+    if (spec.state === 'SPECIAL' && inTimeWindow && this.scene.effectsManager) {
       this.afterimageTimerMs += deltaMs;
       if (this.afterimageTimerMs >= 55) {
         this.afterimageTimerMs = 0;
-        this.scene.effectsManager.spawnAfterimage(
-          this.sprite,
-          this.characterData.color,
-        );
+        this.scene.effectsManager.spawnAfterimage(this.sprite, this.characterData.color);
       }
     }
 
@@ -445,10 +447,7 @@ export default class Fighter {
       this.hasHitCurrentAttack = false;
       this.attackElapsedMs = 0;
       this.faceTowardsOpponent();
-      this.setState(
-        this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP,
-        true,
-      );
+      this.setState(this.isGrounded ? FIGHTER_STATES.IDLE : FIGHTER_STATES.JUMP, true);
     }
   }
 
@@ -640,6 +639,10 @@ export default class Fighter {
     const heightOffset = Math.max(0, this.groundY - this.y);
     const shadowScale = Math.max(0.45, 1 - heightOffset / 320);
     this.shadow.setPosition(this.x, this.groundY - 8);
-    this.shadow.setScale(shadowScale);
+    if (this.state === FIGHTER_STATES.DEFEAT && this.isGrounded) {
+      this.shadow.setScale(1.45, 0.85);
+    } else {
+      this.shadow.setScale(shadowScale);
+    }
   }
 }
