@@ -2,21 +2,281 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  background-color: #0d0d12;
+html,
+body {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #07070b;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 #game-container {
+  position: fixed;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
 
+#game-container canvas {
+  display: block;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: auto !important;
+  touch-action: none;
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.85);
+}
+
+#fullscreen-toggle-btn {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 200;
+  background: rgba(16, 16, 26, 0.82);
+  color: #ffd60a;
+  border: 1.5px solid rgba(255, 214, 10, 0.75);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-family: Impact, 'Arial Black', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  touch-action: manipulation;
+}
+
+#fullscreen-toggle-btn:active {
+  background: rgba(255, 59, 48, 0.9);
+  color: #ffffff;
+  transform: scale(0.95);
+}
+
+#orientation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: radial-gradient(circle at center, #1c1016 0%, #07070b 100%);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.orientation-card {
+  max-width: 360px;
+  background: rgba(20, 20, 31, 0.96);
+  border: 2px solid #ffd60a;
+  padding: 28px 22px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
+}
+
+.rotate-icon {
+  font-size: 54px;
+  color: #ff3b30;
+  margin-bottom: 12px;
+  animation: pulseRotate 1.6s infinite ease-in-out;
+}
+
+.orientation-card h2 {
+  font-family: Impact, 'Arial Black', sans-serif;
+  font-size: 28px;
+  letter-spacing: 2px;
+  color: #ffd60a;
+  margin-bottom: 10px;
+}
+
+.orientation-card p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e0e0e8;
+}
+
+@keyframes pulseRotate {
+
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+
+  50% {
+    transform: rotate(-90deg) scale(1.1);
+  }
+}
+
+@media screen and (max-width: 960px) and (orientation: portrait) {
+  #orientation-overlay {
+    display: flex;
+  }
+}
+
+.ff-touch-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 120;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding:
+    8px max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+
+.ff-touch-layer.hidden {
+  display: none !important;
+}
+
+.ff-touch-cluster {
+  position: relative;
+  width: clamp(136px, 34vh, 172px);
+  height: clamp(128px, 32vh, 162px);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.ff-touch-btn {
+  position: absolute;
+  width: clamp(44px, 11.2vh, 56px);
+  height: clamp(44px, 11.2vh, 56px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  background: rgba(14, 14, 22, 0.46);
+  border: 2px solid rgba(255, 214, 10, 0.65);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: Impact, 'Arial Black', sans-serif;
+  font-size: clamp(10px, 2.5vh, 13px);
+  line-height: 1.05;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.05s ease, background-color 0.05s ease, border-color 0.05s ease;
+  touch-action: none;
+}
+
+.ff-touch-btn span.sub {
+  font-family: monospace;
+  font-size: clamp(7px, 1.7vh, 9px);
+  font-weight: bold;
+  color: #ffd60a;
+  margin-top: 1px;
+}
+
+.ff-touch-btn.active {
+  background: rgba(255, 59, 48, 0.78);
+  border-color: #ffffff;
+  box-shadow: 0 0 14px rgba(255, 214, 10, 0.8);
+}
+
+.ff-touch-btn.dpad-left {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ff-touch-btn.dpad-left.active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.ff-touch-btn.dpad-right {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ff-touch-btn.dpad-right.active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.ff-touch-btn.dpad-up {
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  border-color: rgba(100, 210, 255, 0.75);
+}
+
+.ff-touch-btn.dpad-up.active {
+  transform: translateX(-50%) scale(0.9);
+}
+
+.ff-touch-btn.dpad-down {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+.ff-touch-btn.dpad-down.active {
+  transform: translateX(-50%) scale(0.9);
+}
+
+.ff-touch-btn.atk-punch {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  border-color: rgba(255, 159, 10, 0.82);
+  background: rgba(40, 20, 8, 0.48);
+}
+
+.ff-touch-btn.atk-punch.active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.ff-touch-btn.atk-kick {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  border-color: rgba(255, 59, 48, 0.82);
+  background: rgba(45, 10, 14, 0.48);
+}
+
+.ff-touch-btn.atk-kick.active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.ff-touch-btn.atk-special {
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  border-color: rgba(255, 214, 10, 0.88);
+  background: rgba(55, 14, 14, 0.52);
+}
+
+.ff-touch-btn.atk-special.active {
+  transform: translateX(-50%) scale(0.9);
+}
+
+.ff-touch-btn.atk-special.cooldown {
+  opacity: 0.42;
+  border-color: #8e8e93;
+}
+
+.ff-touch-btn.atk-block {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  border-color: rgba(10, 132, 255, 0.82);
+  background: rgba(10, 24, 48, 0.48);
+}
+
+.ff-touch-btn.atk-block.active {
+  background: rgba(10, 132, 255, 0.82);
+  transform: translateX(-50%) scale(0.9);
+}
