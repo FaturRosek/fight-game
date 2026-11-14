@@ -49,31 +49,11 @@ function extractFourPosesFromSheet(scene, rawKey, char) {
   const cleanCtx = cleanCanvas.getContext("2d");
   cleanCtx.drawImage(sourceImg, 0, 0);
 
-  const imgData = cleanCtx.getImageData(
-    0,
-    0,
+  removeExteriorWhiteBackground(
+    cleanCtx,
     cleanCanvas.width,
     cleanCanvas.height,
   );
-  const data = imgData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const maxC = Math.max(r, g, b);
-    const minC = Math.min(r, g, b);
-    const saturation = maxC - minC;
-    const brightness = (r + g + b) / 3;
-
-    if (brightness > 240 && saturation < 18) {
-      data[i + 3] = 0;
-    } else if (brightness > 222 && saturation < 24) {
-      const alphaFactor = (240 - brightness) / 18;
-      data[i + 3] = Math.max(0, Math.min(255, Math.floor(alphaFactor * 255)));
-    }
-  }
-  cleanCtx.putImageData(imgData, 0, 0);
 
   const sliceWidth = Math.floor(cleanCanvas.width / 4);
   const sliceHeight = cleanCanvas.height;
@@ -118,8 +98,98 @@ function extractFourPosesFromSheet(scene, rawKey, char) {
     poses.push(poseCanvas);
   }
 
-  void char;
   return poses;
+}
+
+function removeExteriorWhiteBackground(ctx, width, height) {
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const totalPixels = width * height;
+  const visited = new Uint8Array(totalPixels);
+  const isBg = new Uint8Array(totalPixels);
+  const queue = new Int32Array(totalPixels);
+  let head = 0;
+  let tail = 0;
+
+  const isWhiteBackdropPixel = (idx) => {
+    const p = idx * 4;
+    const a = data[p + 3];
+    if (a < 16) return true;
+    const r = data[p];
+    const g = data[p + 1];
+    const b = data[p + 2];
+    const maxC = Math.max(r, g, b);
+    const minC = Math.min(r, g, b);
+    const saturation = maxC - minC;
+    const brightness = (r + g + b) / 3;
+    return brightness >= 230 && saturation <= 26;
+  };
+
+  const enqueueIfBg = (x, y) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = y * width + x;
+    if (visited[idx]) return;
+    visited[idx] = 1;
+    if (isWhiteBackdropPixel(idx)) {
+      isBg[idx] = 1;
+      queue[tail++] = idx;
+    }
+  };
+
+  for (let x = 0; x < width; x++) {
+    enqueueIfBg(x, 0);
+    enqueueIfBg(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    enqueueIfBg(0, y);
+    enqueueIfBg(width - 1, y);
+  }
+
+  const sliceWidth = Math.floor(width / 4);
+  for (let s = 1; s < 4; s++) {
+    const seamX = s * sliceWidth;
+    for (let y = 0; y < height; y++) {
+      enqueueIfBg(seamX, y);
+    }
+  }
+
+  while (head < tail) {
+    const curr = queue[head++];
+    const cx = curr % width;
+    const cy = (curr - cx) / width;
+
+    if (cx > 0) enqueueIfBg(cx - 1, cy);
+    if (cx < width - 1) enqueueIfBg(cx + 1, cy);
+    if (cy > 0) enqueueIfBg(cx, cy - 1);
+    if (cy < height - 1) enqueueIfBg(cx, cy + 1);
+  }
+
+  for (let i = 0; i < totalPixels; i++) {
+    if (isBg[i]) {
+      data[i * 4 + 3] = 0;
+    }
+  }
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      if (isBg[idx]) continue;
+      const touchesBg =
+        isBg[idx - 1] ||
+        isBg[idx + 1] ||
+        isBg[idx - width] ||
+        isBg[idx + width];
+      if (touchesBg) {
+        const p = idx * 4;
+        const brightness = (data[p] + data[p + 1] + data[p + 2]) / 3;
+        if (brightness > 215) {
+          data[p + 3] = Math.min(data[p + 3], 135);
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
 }
 
 function isKickPoseFacingLeft(ctx, bounds) {
